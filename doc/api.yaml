@@ -1,0 +1,756 @@
+openapi: 3.0.3
+info:
+  title: WASAText Messaging API Specification
+  description: |
+    This OpenAPI document describes the WASAText API, including user, messaging, and group operations.
+  version: "1"
+tags:
+  - name: login
+    description: Operations related to user authentication and creation.
+  - name: user
+    description: Operations for managing the current user's profile.
+  - name: conversations
+    description: Operations for listing and viewing chats.
+  - name: messaging
+    description: Operations for sending messages and reactions.
+  - name: groups
+    description: Operations for managing group chats.
+security:
+  - bearerAuth: []
+
+paths:
+  /session:
+    post:
+      tags: ["login"]
+      summary: Logs in the user
+      description: |
+        If the user does not exist, it will be created, 
+        and an identifier is returned.
+        If the user exists, the user identifier is returned.
+      operationId: doLogin
+      requestBody:
+        description: User details
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '201':
+          description: User log-in action successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+
+  /user/name:
+    put:
+      tags : ["user"]
+      summary : Update the current user's name
+      operationId : setMyUserName
+      description : Allows the authenticated user to update their unique username.
+      requestBody :
+        description : New user name details
+        required : true
+        content :
+          application/json :
+            schema :
+              type : object
+              description : Schema for updating the user's name.
+              required :
+                - newName
+              properties :
+                newName :
+                  type : string
+                  description : The new unique username
+                  minLength : 3
+                  maxLength : 32 
+                  pattern : "^[a-zA-Z0-9]+$" 
+      responses :
+        '204':
+          description : User name successfully updated (No Content)
+        '409':
+          description : Conflict, the new name is already in use
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+  /user/photo:
+    put:
+      tags : ["user"]
+      summary : Update the current user's profile photo
+      operationId : setMyPhoto
+      description : Allows the authenticated user to update their profile photo URL.
+      requestBody :
+        description : New profile photo URL
+        required : true
+        content :
+          application/json :
+            schema :
+              type : object
+              description : Schema for updating the user's photo URL.
+              required :
+                - photoUrl
+              properties :
+                photoUrl :
+                  type : string
+                  format : url
+                  description : The URL of the new profile photo
+                  maxLength : 200 
+      responses :
+        '204':
+          description : Profile photo successfully updated (No Content)
+        '403':
+          description : Forbidden (Not authorized)
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+  /conversations:
+    get:
+      tags : ["conversations"]
+      summary : Get list of all conversations and groups
+      operationId : getMyConversations
+      description : Returns the list of conversations sorted by latest message, with optional username search.
+      parameters :
+        - name : username
+          in : query
+          required : false
+          schema :
+            type : string
+            description : Optional filter to search for other users by name.
+            minLength : 3 
+            maxLength : 32 
+            pattern : "^[a-zA-Z0-9]+$" 
+      responses :
+        '200':
+          description : List of conversations sorted reverse-chronologically.
+          content :
+            application/json :
+              schema :
+                type : array
+                description : Array of conversation snippets. 
+                minItems : 0 
+                maxItems : 50 
+                items :
+                  $ref : '#/components/schemas/ConversationSnippet'
+        '401':
+          description : Unauthorized
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+  /conversations/{id}:
+    get:
+      tags : ["conversations"]
+      summary : View all exchanged messages in a specific conversation or group
+      operationId : getConversation
+      description : Retrieves the message history for a given conversation ID. 
+      parameters :
+        - name : id
+          in : path
+          required : true
+          schema :
+            type : string
+            description : The ID of the conversation (User ID or Group ID).
+            minLength : 10 
+            maxLength : 30 
+            pattern : "^[a-zA-Z0-9]+$" 
+      responses :
+        '200':
+          description : List of all messages in reverse chronological order.
+          content :
+            application/json :
+              schema :
+                type : array
+                description : Array of Message objects. 
+                minItems : 0 
+                maxItems : 100 
+                items :
+                  $ref : '#/components/schemas/Message'
+        '404':
+          description : Conversation not found
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+  /messages:
+    post:
+      tags : ["messaging"]
+      summary : Send a new message to a user or group
+      operationId : sendMessage
+      description : Sends a new text or photo/GIF message to the specified recipient.
+      requestBody :
+        description : Recipient ID and message content
+        required : true
+        content :
+          application/json :
+            schema :
+              type : object
+              description : Schema for sending a new message.
+              required :
+                - recipientId
+                - content
+              properties :
+                recipientId :
+                  type : string
+                  description : The ID of the recipient (User or Group).
+                  minLength : 10 
+                  maxLength : 30
+                  pattern : "^[a-zA-Z0-9]+$"
+                content :
+                  type : string
+                  description : The text or URL content of the message.
+                  minLength : 1
+                  maxLength : 1000
+                  pattern : ".+" # Allows any character for text/URL content
+      responses :
+        '201':
+          description : Message sent successfully
+          content :
+            application/json :
+              schema :
+                $ref : '#/components/schemas/Message'
+        '404':
+          description : Recipient not found
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+  /messages/forward:
+    post:
+      tags : ["messaging"]
+      summary : Forward an existing message to a new recipient
+      operationId : forwardMessage
+      description : Forwards a previously sent message to a new chat. 
+      requestBody :
+        description : Message ID and new recipient ID
+        required : true
+        content :
+          application/json :
+            schema :
+              type : object
+              description : Schema for forwarding an existing message.
+              required :
+                - messageId
+                - recipientId
+              properties :
+                messageId :
+                  type : string
+                  description : The ID of the message to forward.
+                  minLength : 10 
+                  maxLength : 30
+                  pattern : "^[a-zA-Z0-9]+$"
+                recipientId :
+                  type : string
+                  description : The ID of the new recipient (User or Group).
+                  minLength : 10
+                  maxLength : 30
+                  pattern : "^[a-zA-Z0-9]+$"
+      responses :
+        '201':
+          description : Message forwarded successfully
+          content :
+            application/json :
+              schema :
+                $ref : '#/components/schemas/Message'
+        '404':
+          description : Message or recipient not found
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+  /messages/{id}:
+    delete:
+      tags : ["messaging"]
+      summary : Delete a sent message
+      operationId : deleteMessage
+      description : Deletes a message the user has previously sent. 
+      parameters :
+        - name : id
+          in : path
+          required : true
+          schema :
+            type : string
+            description : The ID of the message to delete.
+            minLength : 10 
+            maxLength : 30
+            pattern : "^[a-zA-Z0-9]+$"
+      responses :
+        '204':
+          description : Message deleted successfully (No Content)
+        '403':
+          description : Forbidden (Cannot delete a message sent by another user)
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+        '404':
+          description : Message not found
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+    
+  /messages/{id}/reactions:
+    post:
+      tags : ["messaging"]
+      summary : Add a reaction to a message
+      operationId : commentMessage
+      description : Adds a single emoticon reaction to a specified message. 
+      parameters :
+        - name : id
+          in : path
+          required : true
+          schema :
+            type : string
+            description : The ID of the message to react to.
+            minLength : 10 
+            maxLength : 30
+            pattern : "^[a-zA-Z0-9]+$"
+      requestBody :
+        description : Emoticon for the reaction
+        required : true
+        content :
+          application/json :
+            schema :
+              type : object
+              description : Schema for adding a reaction.
+              required :
+                - emoticon
+              properties :
+                emoticon :
+                  type : string
+                  description : The emoticon (e.g., 👍, 😂).
+                  minLength : 1 
+                  maxLength : 4 
+                  pattern : ".+" # Allows any character, including complex emoji
+      responses :
+        '200':
+          description : Reaction successfully added
+          content : 
+            application/json :
+              schema :
+                type : object
+                description : Success indicator.
+                properties :
+                  success : 
+                    type : boolean
+                    description : True if the reaction was recorded.
+        '404':
+          description : Message not found
+          content :
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags : ["messaging"]
+      summary : Remove a reaction (uncomment) from a message
+      operationId : uncommentMessage
+      description : Removes the specified emoticon reaction from a message. 
+      parameters :
+        - name : id
+          in : path
+          required : true
+          schema :
+            type : string
+            description : The ID of the message.
+            minLength : 10 
+            maxLength : 30
+            pattern : "^[a-zA-Z0-9]+$"
+        - name : emoticon
+          in : query
+          required : true
+          schema :
+            type : string
+            description : The emoticon to remove (as one user can only post one of each type).
+            minLength : 1 
+            maxLength : 4
+            pattern : ".+" 
+      responses :
+        '204':
+          description : Reaction removed successfully (No Content)
+        '404':
+          description : Message or reaction not found
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+  /groups/{id}/members:
+    post:
+      tags : ["groups"]
+      summary : Add a user to an existing group
+      operationId : addToGroup
+      description : Adds a specified user to a group chat.
+      parameters :
+        - name : id
+          in : path
+          required : true
+          schema :
+            type : string
+            description : The ID of the group to add the user to.
+            minLength : 10 
+            maxLength : 30
+            pattern : "^[a-zA-Z0-9]+$"
+      requestBody :
+        description : User ID to add
+        required : true
+        content :
+          application/json :
+            schema :
+              type : object
+              description : Schema for adding a user to a group.
+              required :
+                - userId
+              properties :
+                userId :
+                  type : string
+                  description : The ID of the user to be added.
+                  minLength : 10 
+                  maxLength : 30
+                  pattern : "^[a-zA-Z0-9]+$"
+      responses :
+        '201':
+          description : User successfully added to the group
+          content :
+            application/json :
+              schema :
+                $ref : '#/components/schemas/GroupMember'
+        '404':
+          description : Group or User not found
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+        '403':
+          description : Forbidden (Not authorized to add members to this group)
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+  /groups/{groupId}/members/{userId}:
+    delete:
+      tags : ["groups"]
+      summary : Allows a user to leave a group
+      operationId : leaveGroup
+      description : Removes the specified user (must be the authenticated user) from the group.
+      parameters :
+        - name : groupId
+          in : path
+          required : true
+          schema :
+            type : string
+            description : The ID of the group the user is leaving.
+            minLength : 10 
+            maxLength : 30
+            pattern : "^[a-zA-Z0-9]+$"
+        - name : userId
+          in : path
+          required : true
+          schema :
+            type : string
+            description : The ID of the user leaving the group (must be the authenticated user).
+            minLength : 10 
+            maxLength : 30
+            pattern : "^[a-zA-Z0-9]+$"
+      responses :
+        '204':
+          description : User successfully left the group (No Content)
+        '404':
+          description : Group or User not found
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+        '403':
+          description : Forbidden (Cannot remove another user)
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+  /groups/{id}/name:
+    put:
+      tags : ["groups"]
+      summary : Update the group name
+      operationId : setGroupName
+      description : Changes the name of the group chat.
+      parameters :
+        - name : id
+          in : path
+          required : true
+          schema :
+            type : string
+            description : The ID of the group to update.
+            minLength : 10 
+            maxLength : 30
+            pattern : "^[a-zA-Z0-9]+$"
+      requestBody :
+        description : New group name details
+        required : true
+        content :
+          application/json :
+            schema :
+              type : object
+              description : Schema for updating the group name.
+              required :
+                - newName
+              properties :
+                newName :
+                  type : string
+                  description : The new name for the group.
+                  minLength : 3 
+                  maxLength : 32
+                  pattern : "^[a-zA-Z0-9 ]+$" 
+      responses :
+        '204':
+          description : Group name successfully updated (No Content)
+        '403':
+          description : Forbidden (Not authorized to change group name)
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+        '409':
+          description : Conflict (Name already in use by another group)
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+  /groups/{id}/photo:
+    put:
+      tags : ["groups"]
+      summary : Update the group photo
+      operationId : setGroupPhoto
+      description : Changes the group's photo URL.
+      parameters :
+        - name : id
+          in : path
+          required : true
+          schema :
+            type : string
+            description : The ID of the group to update.
+            minLength : 10 
+            maxLength : 30
+            pattern : "^[a-zA-Z0-9]+$"
+      requestBody :
+        description : New group photo URL
+        required : true
+        content :
+          application/json :
+            schema :
+              type : object
+              description : Schema for updating the group photo URL.
+              required :
+                - photoUrl
+              properties :
+                photoUrl :
+                  type : string
+                  format : url
+                  description : The URL of the new group photo.
+                  maxLength : 200 
+      responses :
+        '204':
+          description : Group photo successfully updated (No Content)
+        '403':
+          description : Forbidden (Not authorized to change group photo)
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
+
+components:
+  securitySchemes:
+    bearerAuth: 
+      type: http
+      scheme: bearer
+
+  schemas:
+    ErrorResponse: 
+      type : object
+      required :
+        - message
+      description : Standard error response schema.
+      properties :
+        message :
+          type : string
+          description : A description of the error that occurred.
+          example : "Resource not found."
+          minLength : 1
+          maxLength : 256
+          pattern : ".+"
+
+    Reaction:
+      type: object
+      required: [reactorId, emoticon]
+      description : Represents a user's reaction to a message.
+      properties:
+        reactorId:
+          type: string
+          description: ID of user who made a reaction
+          minLength : 10 
+          maxLength : 30
+          pattern : "^[a-zA-Z0-9]+$"
+        emoticon:
+          type: string
+          description: emoticon (for example, "👍" or "😂")
+          minLength : 1 
+          maxLength : 4
+          pattern : ".+"
+    Message:
+      type: object
+      required: [id, senderId, timestamp, content, status, reactions]
+      description : A single message sent between users or in a group.
+      properties:
+        id:
+          type: string
+          description: Unique identificator of the message
+          example: "MSG123ABCD01"
+          minLength : 10 
+          maxLength : 30
+          pattern : "^[a-zA-Z0-9]+$"
+        senderId:
+          type: string
+          description: ID of sender user
+          minLength : 10 
+          maxLength : 30
+          pattern : "^[a-zA-Z0-9]+$"
+        timestamp:
+          type: string
+          format: date-time
+          description: date and time of sending
+          minLength : 1
+          maxLength : 35
+        content:
+          type: string
+          description: content (text or URL for GIF)
+          example: "See you!"
+          minLength : 1 
+          maxLength : 1000
+          pattern : ".+"
+        isPhoto:
+          type: boolean
+          description: True, if content is GIF/photo URL
+        status:
+          type: integer
+          description: 0=sent, 1=received, 2=read
+          enum: [0, 1, 2] 
+        replyTo:
+          type: string
+          description: ID of the message to which the response has been made 
+          minLength : 10 
+          maxLength : 30
+          pattern : "^[a-zA-Z0-9]+$"
+        reactions:
+          type: array
+          description: array of reactions to the message
+          minItems : 0 
+          maxItems : 10 
+          items:
+            $ref: '#/components/schemas/Reaction' 
+
+    LoginRequest:
+      type: object
+      required:
+      - name
+      description : Request body for the simplified login operation.
+      properties:
+        name:
+          type: string
+          example: Maria
+          pattern: '^[a-zA-Z0-9]+$'
+          minLength: 3
+          maxLength: 16
+          description : The user's desired unique username.
+      
+    AuthResponse:
+      type: object
+      description : Response body for the simplified login operation.
+      properties:
+        identifier:
+          type: string
+          description: User identifier (used as the Bearer token)
+          example: "abcdef012345"
+          minLength : 10 
+          maxLength : 30
+          pattern : "^[a-zA-Z0-9]+$"
+
+    User:
+      type: object
+      required: [id, name, photoUrl]
+      description : Represents a WASAText user.
+      properties:
+        id:
+          type: string
+          description: Unique user identifier (token)
+          minLength : 10 
+          maxLength : 30
+          pattern : "^[a-zA-Z0-9]+$"
+        name:
+          type: string
+          description: User name (nickname)
+          minLength : 3
+          maxLength : 32
+          pattern : "^[a-zA-Z0-9]+$"
+        photoUrl:
+          type: string
+          description: URL to the user's profile photo
+          format : url
+          maxLength : 200
+
+    # Conversation List Element Schema 
+    ConversationSnippet:
+      type: object
+      required: [id, name, photoUrl, latestMessage, isGroup]
+      description : A snippet of a conversation for the main chat list.
+      properties:
+        id:
+          type: string
+          description: ID of the correspondent or group
+          minLength : 10 
+          maxLength : 30
+          pattern : "^[a-zA-Z0-9]+$"
+        name:
+          type: string
+          description: Name of the correspondent or group
+          minLength : 3
+          maxLength : 32
+          pattern : "^[a-zA-Z0-9 ]+$"
+        photoUrl:
+          type: string
+          description: URL to the correspondent's or group's photo
+          format : url
+          maxLength : 200
+        latestMessage:
+          description: Reference to the latest message in the conversation
+          allOf : 
+            - $ref: '#/components/schemas/Message'
+        isGroup:
+          type: boolean
+          description: True if this is a group chat
+        unreadCount:
+          type: integer
+          description: Number of unread messages
+
+    GroupMember:
+      type: object
+      required: [userId]
+      description : Details of a user within a group chat.
+      properties:
+        userId:
+          type: string
+          description: ID of the user who is a member of the group
+          minLength : 10 
+          maxLength : 30
+          pattern : "^[a-zA-Z0-9]+$"
