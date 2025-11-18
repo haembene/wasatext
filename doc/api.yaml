@@ -43,6 +43,41 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
 
+  /users:
+    get:
+      tags : ["user"]
+      summary : Search for users by username
+      operationId : findUsers
+      description : Finds all existing WASAText usernames matching the query.
+      parameters :
+        - name : username
+          in : query
+          required : true
+          schema :
+            type : string
+            description : The username fragment to search for.
+            minLength : 3
+            maxLength : 32
+            pattern : "^[a-zA-Z0-9]+$"
+      responses :
+        '200':
+          description : Array of matching users.
+          content :
+            application/json :
+              schema :
+                type : array
+                description : Array of matching User objects.
+                minItems : 0
+                maxItems : 50
+                items :
+                  $ref : '#/components/schemas/User' # This uses the User schema
+        '401':
+          description : Unauthorized
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+
   /user/name:
     put:
       tags : ["user"]
