@@ -1,4 +1,6 @@
 openapi: 3.0.3
+servers: 
+  - url: "http://localhost:3000"
 info:
   title: WASAText Messaging API Specification
   description: |
@@ -23,6 +25,7 @@ paths:
     post:
       tags: ["login"]
       summary: Logs in the user
+      security: []
       description: |
         If the user does not exist, it will be created, 
         and an identifier is returned.
