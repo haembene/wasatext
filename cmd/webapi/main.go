@@ -60,8 +60,8 @@ func run() error {
 
 	// HTTP SERVER
 	server := &http.Server{
-		Addr:              ":8080",
-		Handler:           router,
+		Addr:              ":3000",
+		Handler:           corsHandler(router),
 		ReadTimeout:       5 * time.Second,
 		ReadHeaderTimeout: 5 * time.Second,
 		WriteTimeout:      5 * time.Second,
@@ -70,7 +70,7 @@ func run() error {
 	// Start server in goroutine
 	serverErrors := make(chan error, 1)
 	go func() {
-		logger.Infof("API is listening on http://localhost:8080")
+		logger.Infof("API is listening on http://localhost:3000")
 		serverErrors <- server.ListenAndServe()
 	}()
 
@@ -99,4 +99,39 @@ func run() error {
 
 	logger.Info("Server stopped gracefully")
 	return nil
+}
+
+func applyCORS(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        w.Header().Set("Access-Control-Allow-Origin", "*")
+        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
+        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        
+        if r.Method == "OPTIONS" {
+            w.WriteHeader(http.StatusOK)
+            return
+        }
+        
+        next.ServeHTTP(w, r)
+    })
+}
+
+func corsHandler(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// 1. Allow any origin
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// 2. Allow specific methods
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
+		// 3. Allow headers, especially Authorization
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		// 4. Handle Preflight Request
+		if r.Method == "OPTIONS" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// 5. Pass real requests to the application
+		h.ServeHTTP(w, r)
+	})
 }
