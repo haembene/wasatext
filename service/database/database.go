@@ -20,6 +20,8 @@ type AppDatabase interface {
 	// Conversations
 	GetMyConversations(userID string, usernameFilter *string) ([]ConversationSnippet, error)
 	GetConversation(meID, conversationID string) ([]Message, error)
+	CreateConversation(myID, otherID string) (ConversationSnippet, error)
+	SetConversationRead(myID, otherID string) error
 
 	// Messages
 	SendMessage(senderID, recipientID, content string, replyTo *string) (Message, error)

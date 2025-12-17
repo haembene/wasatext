@@ -42,7 +42,7 @@ func (rt *_router) sendMessage(
 	}
 
 	// 3. Validate recipientId
-	if len(body.RecipientID) < 10 || len(body.RecipientID) > 30 || !idRegex.MatchString(body.RecipientID) {
+	if len(body.RecipientID) < 3 || len(body.RecipientID) > 64 || !idRegex.MatchString(body.RecipientID) {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid recipientId"})
 		return
@@ -57,7 +57,7 @@ func (rt *_router) sendMessage(
 
 	// 5. Validate replyTo
 	if body.ReplyTo != nil {
-		if len(*body.ReplyTo) < 10 || len(*body.ReplyTo) > 30 || !idRegex.MatchString(*body.ReplyTo) {
+		if len(*body.ReplyTo) < 3 || len(*body.ReplyTo) > 64 || !idRegex.MatchString(*body.ReplyTo) {
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid replyTo"})
 			return

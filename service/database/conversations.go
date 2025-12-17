@@ -335,3 +335,27 @@ func (db *appdbimpl) readMessagesWithReactions(rows *sql.Rows) ([]Message, error
 	}
 	return msgs, nil
 }
+
+
+func (db *appdbimpl) CreateConversation(myID, otherID string) (ConversationSnippet, error) {
+    var conversation ConversationSnippet
+
+    err := db.c.QueryRow(`SELECT id, name, photoUrl FROM users WHERE id = ?`, otherID).Scan(&conversation.ID, &conversation.Name, &conversation.PhotoUrl)
+    if err != nil {
+        if errors.Is(err, sql.ErrNoRows) {
+            return ConversationSnippet{}, errors.New("user not found")
+        }
+        return ConversationSnippet{}, err
+    }
+
+    conversation.IsGroup = false
+    conversation.UnreadCount = 0
+    
+    return conversation, nil
+}
+
+func (db *appdbimpl) SetConversationRead(myID, otherID string) error {
+    // Status 2 = Read. We update messages sent BY the other person TO me.
+    _, err := db.c.Exec(`UPDATE messages SET status = 2 WHERE recipientId = ? AND senderId = ?`, myID, otherID)
+    return err
+}
