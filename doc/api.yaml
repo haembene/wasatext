@@ -422,6 +422,33 @@ paths:
               schema :
                 $ref : '#/components/schemas/ErrorResponse'
 
+  /groups:
+    post:
+      summary: Create a new group conversation
+      operationId: createGroup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                  minLength: 3
+                  maxLength: 30
+              required:
+                - name
+      responses:
+        '201':
+          description: Group created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Conversation'
+        '400':
+          description: Invalid name
+
   /groups/{id}/members:
     post:
       tags : ["groups"]
@@ -792,3 +819,28 @@ components:
           minLength : 10 
           maxLength : 30
           pattern : "^[a-zA-Z0-9]+$"
+
+    Conversation:
+      type: object
+      required: [id, name, isGroup]
+      description: Represents a full conversation object.
+      properties:
+        id:
+          type: string
+          description: Unique identifier
+          minLength: 10
+          maxLength: 30
+          pattern: "^[a-zA-Z0-9]+$"
+        name:
+          type: string
+          description: Conversation name
+          minLength: 3
+          maxLength: 32
+        photoUrl:
+          type: string
+          format: url
+          description: Group photo URL
+          maxLength: 200
+        isGroup:
+          type: boolean
+          description: True if this is a group chat

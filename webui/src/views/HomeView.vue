@@ -5,8 +5,14 @@ export default {
             errormsg: null,
             loading: false,
             conversations: [],
+            
+            // Search Data
             searchQuery: "",
             searchResults: [],
+
+            // Create Group Data
+            showCreateGroup: false,
+            newGroupName: "",
         }
     },
     methods: {
@@ -21,6 +27,7 @@ export default {
             }
             this.loading = false;
         },
+
         async searchUsers() {
             if (this.searchQuery.length < 3) return;
             try {
@@ -32,17 +39,44 @@ export default {
                 this.errormsg = "Error searching users: " + e.toString();
             }
         },
+
         async openChat(targetUserID) {
             try {
+                // Ensure conversation exists
                 let response = await this.$axios.put("/conversations/" + targetUserID, {
                     name: "New Chat" 
                 });
-                let conversationId = response.data.ID || response.data.id;
+                // Some backends return .ID, some .id. Handling both just in case.
+                let conversationId = response.data.ID || response.data.id || response.data.conversationId;
                 this.$router.push("/chat/" + conversationId);
             } catch (e) {
                 this.errormsg = "Failed to start conversation: " + e.toString();
             }
         },
+
+        async createGroup() {
+            if (this.newGroupName.length < 3) {
+                alert("Group name must be at least 3 characters.");
+                return;
+            }
+            this.loading = true;
+            try {
+                // Call POST /groups
+                let response = await this.$axios.post("/groups", {
+                    name: this.newGroupName
+                });
+                
+                // Get the new Group ID
+                let groupId = response.data.ID || response.data.id || response.data.groupId;
+                
+                // Redirect to the chat view
+                this.$router.push("/chat/" + groupId);
+            } catch (e) {
+                this.errormsg = "Failed to create group: " + (e.response ? e.response.data.message : e.toString());
+            }
+            this.loading = false;
+        },
+
         formatTime(timestamp) {
             if (!timestamp) return "";
             return new Date(timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
@@ -59,6 +93,9 @@ export default {
         <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
             <h1 class="h2">Conversations</h1>
             <div class="btn-toolbar mb-2 mb-md-0">
+                <button type="button" class="btn btn-sm btn-outline-primary me-2" @click="showCreateGroup = !showCreateGroup">
+                    <svg class="feather"><use href="/feather-sprite-v4.29.0.svg#plus-circle"/></svg> New Group
+                </button>
                 <button type="button" class="btn btn-sm btn-outline-secondary" @click="refresh">
                     <svg class="feather"><use href="/feather-sprite-v4.29.0.svg#refresh-cw"/></svg> Refresh
                 </button>
@@ -68,6 +105,17 @@ export default {
         <ErrorMsg v-if="errormsg" :msg="errormsg"></ErrorMsg>
 
         <LoadingSpinner :loading="loading">
+            
+            <div v-if="showCreateGroup" class="card mb-4 bg-light">
+                <div class="card-body">
+                    <h5 class="card-title">Create a New Group</h5>
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Group Name (e.g. Study Buddies)" v-model="newGroupName" @keyup.enter="createGroup">
+                        <button class="btn btn-success" type="button" @click="createGroup">Create</button>
+                    </div>
+                </div>
+            </div>
+
             <div class="mb-4">
                 <div class="input-group">
                     <input type="text" class="form-control" placeholder="Search user to start chat..." v-model="searchQuery" @keyup.enter="searchUsers">
@@ -84,7 +132,7 @@ export default {
 
             <div class="list-group">
                 <div v-if="conversations.length === 0" class="text-center text-muted">
-                    No conversations yet. Search for a user above!
+                    No conversations yet. Search for a user or create a group!
                 </div>
 
                 <a href="#" 
@@ -93,10 +141,13 @@ export default {
                    :key="c.ID"
                    @click.prevent="openChat(c.ID)"
                 >
-                    <img :src="c.PhotoUrl || 'https://via.placeholder.com/40'" alt="twbs" width="40" height="40" class="rounded-circle flex-shrink-0">
+                    <img :src="c.PhotoUrl || 'https://via.placeholder.com/40'" alt="pic" width="40" height="40" class="rounded-circle flex-shrink-0">
                     <div class="d-flex gap-2 w-100 justify-content-between">
                         <div>
-                            <h6 class="mb-0">{{ c.Name }} <span v-if="c.isGroup" class="badge bg-secondary">Group</span></h6>
+                            <h6 class="mb-0">
+                                {{ c.Name }} 
+                                <span v-if="c.IsGroup" class="badge bg-secondary ms-1">Group</span>
+                            </h6>
                             <p class="mb-0 opacity-75 text-truncate" style="max-width: 300px;">
                                 {{ c.LatestMessage ? c.LatestMessage.Content : 'No messages' }}
                             </p>

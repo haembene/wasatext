@@ -3,7 +3,6 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"regexp"
 
 	"github.com/haembene/wasatext/service/api/reqcontext"
 	"github.com/julienschmidt/httprouter"
@@ -40,7 +39,8 @@ func (rt *_router) getMyConversations(
 			})
 			return
 		}
-		if ok, _ := regexp.MatchString(`^[a-zA-Z0-9]+$`, username); !ok {
+		// Optimization: Use package-level regex from forward-message.go
+		if !fwdIDRegex.MatchString(username) {
 			w.WriteHeader(http.StatusBadRequest)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"message": "invalid username filter format",

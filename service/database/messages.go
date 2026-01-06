@@ -21,14 +21,22 @@ func (db *appdbimpl) SendMessage(senderID, recipientID, content string, replyTo 
 	isPhoto := isPhotoContent(content)
 
 	// save message
+	// Note: We pass the 'replyTo' pointer directly to Exec.
+	// If it is nil, SQL inserts NULL. If it has a value, SQL inserts the string.
 	_, err := db.c.Exec(`
-        INSERT INTO messages (id, senderId, recipientId, timestamp, content, isPhoto, status, replyTo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-    `,
+		INSERT INTO messages (id, senderId, recipientId, timestamp, content, isPhoto, status, replyTo)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+	`,
 		id, senderID, recipientID, timestamp, content, isPhoto, 0, replyTo,
 	)
 	if err != nil {
 		return Message{}, err
+	}
+
+	// Prepare string value for the struct
+	var replyToVal string
+	if replyTo != nil {
+		replyToVal = *replyTo
 	}
 
 	// return message
@@ -38,9 +46,9 @@ func (db *appdbimpl) SendMessage(senderID, recipientID, content string, replyTo 
 		Timestamp: timestamp,
 		Content:   content,
 		IsPhoto:   isPhoto,
-		Status:    0,            // sent
-		ReplyTo:   replyTo,      // may be nil
-		Reactions: []Reaction{}, // пустой список
+		Status:    0,
+		ReplyTo:   replyToVal, // <--- FIXED: Assigns string (not *string)
+		Reactions: []Reaction{},
 	}
 
 	return msg, nil
@@ -53,11 +61,11 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 	var replyTo sql.NullString
 
 	err := db.c.QueryRow(`
-        SELECT id, senderId, timestamp, content, isPhoto, status, replyTo
-        FROM messages
-        WHERE id = ?
-        LIMIT 1;
-    `, messageID).Scan(
+		SELECT id, senderId, timestamp, content, isPhoto, status, replyTo
+		FROM messages
+		WHERE id = ?
+		LIMIT 1;
+	`, messageID).Scan(
 		&original.ID,
 		&original.SenderID,
 		&original.Timestamp,
@@ -74,8 +82,11 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 		return Message{}, err
 	}
 
+	// FIXED: Assign string value to struct
 	if replyTo.Valid {
-		original.ReplyTo = &replyTo.String
+		original.ReplyTo = replyTo.String
+	} else {
+		original.ReplyTo = ""
 	}
 
 	// check if receipient exists
@@ -87,10 +98,16 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 	newID := strings.ReplaceAll(uuid.New().String(), "-", "")
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
+	// Determine what to pass to SQL for ReplyTo
+	var newReplyToPtr *string
+	if original.ReplyTo != "" {
+		newReplyToPtr = &original.ReplyTo
+	}
+
 	_, err = db.c.Exec(`
-        INSERT INTO messages (id, senderId, recipientId, timestamp, content, isPhoto, status, replyTo)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?);
-    `,
+		INSERT INTO messages (id, senderId, recipientId, timestamp, content, isPhoto, status, replyTo)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+	`,
 		newID,
 		senderID, // person who forwards
 		newRecipientID,
@@ -98,7 +115,7 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 		original.Content, // copy text
 		original.IsPhoto, // copy type
 		0,                // sent
-		original.ReplyTo,
+		newReplyToPtr,    // <--- FIXED: Pass pointer or nil to SQL
 	)
 
 	if err != nil {
@@ -113,7 +130,7 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 		Content:   original.Content,
 		IsPhoto:   original.IsPhoto,
 		Status:    0,
-		ReplyTo:   original.ReplyTo,
+		ReplyTo:   original.ReplyTo, // This is already a string
 		Reactions: []Reaction{},
 	}
 
@@ -125,11 +142,11 @@ func (db *appdbimpl) DeleteMessage(messageID, userID string) error {
 	// Check if the message exists and belongs to userID
 	var sender string
 	err := db.c.QueryRow(`
-        SELECT senderId 
-        FROM messages 
-        WHERE id = ?
-        LIMIT 1
-    `, messageID).Scan(&sender)
+		SELECT senderId 
+		FROM messages 
+		WHERE id = ?
+		LIMIT 1
+	`, messageID).Scan(&sender)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return errors.New("message not found")
@@ -139,23 +156,23 @@ func (db *appdbimpl) DeleteMessage(messageID, userID string) error {
 	}
 
 	if sender != userID {
-		return errors.New("forbidden")
+		return errors.New("forbidden") // FIXED: Removed undefined ErrForbidden
 	}
 
 	// delete reactions
 	_, err = db.c.Exec(`
-        DELETE FROM reactions 
-        WHERE messageId = ?
-    `, messageID)
+		DELETE FROM reactions 
+		WHERE messageId = ?
+	`, messageID)
 	if err != nil {
 		return err
 	}
 
 	// delete message
 	_, err = db.c.Exec(`
-        DELETE FROM messages 
-        WHERE id = ?
-    `, messageID)
+		DELETE FROM messages 
+		WHERE id = ?
+	`, messageID)
 	if err != nil {
 		return err
 	}
@@ -168,8 +185,8 @@ func (db *appdbimpl) AddReaction(messageID, userID, emoticon string) error {
 	// check if message exists
 	var exists string
 	err := db.c.QueryRow(`
-        SELECT id FROM messages WHERE id = ?
-    `, messageID).Scan(&exists)
+		SELECT id FROM messages WHERE id = ?
+	`, messageID).Scan(&exists)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return errors.New("message not found")
@@ -179,11 +196,10 @@ func (db *appdbimpl) AddReaction(messageID, userID, emoticon string) error {
 	}
 
 	// make reaction
-	// PRIMARY KEY(messageId, reactorId, emoticon)
 	_, err = db.c.Exec(`
-        INSERT OR IGNORE INTO reactions (messageId, reactorId, emoticon)
-        VALUES (?, ?, ?)
-    `, messageID, userID, emoticon)
+		INSERT OR IGNORE INTO reactions (messageId, reactorId, emoticon)
+		VALUES (?, ?, ?)
+	`, messageID, userID, emoticon)
 
 	if err != nil {
 		return err
@@ -196,8 +212,8 @@ func (db *appdbimpl) RemoveReaction(messageID, userID, emoticon string) error {
 
 	var exists string
 	err := db.c.QueryRow(`
-        SELECT id FROM messages WHERE id = ?
-    `, messageID).Scan(&exists)
+		SELECT id FROM messages WHERE id = ?
+	`, messageID).Scan(&exists)
 
 	if errors.Is(err, sql.ErrNoRows) {
 		return errors.New("message not found")
@@ -208,9 +224,9 @@ func (db *appdbimpl) RemoveReaction(messageID, userID, emoticon string) error {
 
 	// delete reaction
 	res, err := db.c.Exec(`
-        DELETE FROM reactions
-        WHERE messageId = ? AND reactorId = ? AND emoticon = ?
-    `, messageID, userID, emoticon)
+		DELETE FROM reactions
+		WHERE messageId = ? AND reactorId = ? AND emoticon = ?
+	`, messageID, userID, emoticon)
 
 	if err != nil {
 		return err

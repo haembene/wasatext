@@ -11,6 +11,12 @@ import (
 
 var fwdIDRegex = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
 
+// Define constants to satisfy 'goconst' linter
+const (
+	ERR_MSG_NOT_FOUND       = "message not found"
+	ERR_RECIPIENT_NOT_FOUND = "recipient not found"
+)
+
 type forwardMessageRequest struct {
 	MessageID   string `json:"messageId"`
 	RecipientID string `json:"recipientId"`
@@ -55,9 +61,11 @@ func (rt *_router) forwardMessage(
 	}
 
 	// 5. Forward
-	msg, err := rt.db.ForwardMessage(userID, body.MessageID, body.RecipientID)
+	// FIXED: Arguments were swapped.
+	// DB signature: ForwardMessage(messageID, newRecipientID, senderID)
+	msg, err := rt.db.ForwardMessage(body.MessageID, body.RecipientID, userID)
 	if err != nil {
-		if err.Error() == "message not found" || err.Error() == "recipient not found" {
+		if err.Error() == ERR_MSG_NOT_FOUND || err.Error() == ERR_RECIPIENT_NOT_FOUND {
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": err.Error()})
 			return

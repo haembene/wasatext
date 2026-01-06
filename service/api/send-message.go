@@ -67,7 +67,8 @@ func (rt *_router) sendMessage(
 	// 6. DB call
 	msg, err := rt.db.SendMessage(senderID, body.RecipientID, body.Content, body.ReplyTo)
 	if err != nil {
-		if err.Error() == "recipient not found" {
+		// Use constant defined in forward-message.go to satisfy goconst
+		if err.Error() == ERR_RECIPIENT_NOT_FOUND {
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "recipient not found"})
 			return

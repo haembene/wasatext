@@ -50,6 +50,15 @@ func (rt *_router) setMyPhoto(
 		return
 	}
 
+	// Validate format (using package-level variable from set-group-photo.go)
+	if !urlRegex.MatchString(body.PhotoUrl) {
+		w.WriteHeader(http.StatusBadRequest)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"message": "invalid url format",
+		})
+		return
+	}
+
 	// 4. Update DB
 	err := rt.db.UpdateUserPhoto(userID, body.PhotoUrl)
 	if err != nil {

@@ -67,7 +67,8 @@ func (rt *_router) uncommentMessage(
 	// 5. DB call
 	err := rt.db.RemoveReaction(messageID, userID, emoticon)
 	if err != nil {
-		if err.Error() == "message not found" || err.Error() == "reaction not found" {
+		// Fixed: Use constant ERR_MSG_NOT_FOUND to satisfy goconst
+		if err.Error() == ERR_MSG_NOT_FOUND || err.Error() == "reaction not found" {
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"message": err.Error(),

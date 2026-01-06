@@ -6,6 +6,48 @@ import (
 	"fmt"
 )
 
+// User represents a user in the system
+type User struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	PhotoURL string `json:"photoUrl"`
+}
+
+type Reaction struct {
+	ReactorID string `json:"reactorId"`
+	Emoticon  string `json:"emoticon"`
+}
+
+// Conversation represents a chat or group conversation
+type Conversation struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	PhotoUrl string `json:"photoUrl"`
+	IsGroup  bool   `json:"isGroup"`
+}
+
+// Message represents a single message
+type Message struct {
+	ID        string     `json:"id"`
+	SenderID  string     `json:"senderId"`
+	Content   string     `json:"content"`
+	Timestamp string     `json:"timestamp"`
+	IsPhoto   bool       `json:"isPhoto"`
+	Status    int        `json:"status"`
+	ReplyTo   string     `json:"replyTo,omitempty"`
+	Reactions []Reaction `json:"reactions"`
+}
+
+// ConversationSnippet is used for the list of conversations
+type ConversationSnippet struct {
+	ID            string   `json:"id"`
+	Name          string   `json:"name"`
+	PhotoUrl      string   `json:"photoUrl"`
+	LatestMessage *Message `json:"latestMessage"`
+	IsGroup       bool     `json:"isGroup"`
+	UnreadCount   int      `json:"unreadCount"`
+}
+
 // AppDatabase is the high level interface for the DB
 type AppDatabase interface {
 	// Login
@@ -31,6 +73,8 @@ type AppDatabase interface {
 	RemoveReaction(messageID, userID, emoticon string) error
 
 	// Groups
+	// NOTE: We changed ownerID to string to match the rest of your app
+	CreateGroup(name string, ownerID string) (Conversation, error)
 	AddUserToGroup(groupID, userIDToAdd, requesterID string) error
 	LeaveGroup(groupID, userID, requesterID string) error
 	SetGroupName(groupID, requesterID, newName string) error
@@ -45,7 +89,6 @@ type appdbimpl struct {
 }
 
 // New returns a new instance of AppDatabase based on the SQLite connection `db`.
-// `db` is required - an error will be returned if `db` is `nil`.
 func New(db *sql.DB) (AppDatabase, error) {
 	if db == nil {
 		return nil, errors.New("database is required when building an AppDatabase")
@@ -60,7 +103,6 @@ func New(db *sql.DB) (AppDatabase, error) {
 	`).Scan(&tableName)
 
 	if errors.Is(err, sql.ErrNoRows) {
-
 		// The database is empty → create all tables
 		schema := `
 		CREATE TABLE IF NOT EXISTS users (
@@ -80,16 +122,17 @@ func New(db *sql.DB) (AppDatabase, error) {
 			replyTo TEXT
 		);
 
-		CREATE TABLE IF NOT EXISTS groups (
+		CREATE TABLE IF NOT EXISTS conversations (
 			id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
-			photoUrl TEXT NOT NULL
+			is_group BOOLEAN NOT NULL,
+			photo_url TEXT NOT NULL
 		);
-
-		CREATE TABLE IF NOT EXISTS group_members (
-			groupId TEXT NOT NULL,
-			userId TEXT NOT NULL,
-			PRIMARY KEY (groupId, userId)
+		
+		CREATE TABLE IF NOT EXISTS participants (
+			user_id TEXT NOT NULL,
+			conversation_id TEXT NOT NULL,
+			PRIMARY KEY (user_id, conversation_id)
 		);
 
 		CREATE TABLE IF NOT EXISTS reactions (
@@ -99,7 +142,6 @@ func New(db *sql.DB) (AppDatabase, error) {
 			PRIMARY KEY (messageId, reactorId, emoticon)
 		);
 		`
-
 		_, err = db.Exec(schema)
 		if err != nil {
 			return nil, fmt.Errorf("error creating database schema: %w", err)
@@ -111,6 +153,7 @@ func New(db *sql.DB) (AppDatabase, error) {
 
 	return &appdbimpl{c: db}, nil
 }
+
 func (db *appdbimpl) Ping() error {
 	return db.c.Ping()
 }

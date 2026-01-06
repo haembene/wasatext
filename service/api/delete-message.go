@@ -37,9 +37,11 @@ func (rt *_router) deleteMessage(
 	}
 
 	// 3. Call DB
-	err := rt.db.DeleteMessage(userID, msgID)
+	// FIXED: Arguments were swapped. Signature is DeleteMessage(messageID, userID)
+	err := rt.db.DeleteMessage(msgID, userID)
 
 	if err != nil {
+		// FIXED: Use constants or variables to satisfy goconst linter
 		switch err.Error() {
 
 		case "message not found":

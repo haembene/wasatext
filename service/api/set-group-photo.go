@@ -9,6 +9,9 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
+// Pre-compile regex for performance
+var urlRegex = regexp.MustCompile(`^https?://`)
+
 type updateGroupPhotoRequest struct {
 	PhotoUrl string `json:"photoUrl"`
 }
@@ -59,8 +62,8 @@ func (rt *_router) setGroupPhoto(
 		return
 	}
 
-	// simple URL format validation
-	if ok, _ := regexp.MatchString(`^https?://`, body.PhotoUrl); !ok {
+	// simple URL format validation using pre-compiled regex
+	if !urlRegex.MatchString(body.PhotoUrl) {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"message": "invalid url format",
@@ -74,14 +77,14 @@ func (rt *_router) setGroupPhoto(
 	if err != nil {
 		switch err.Error() {
 
-		case "forbidden":
+		case ERR_FORBIDDEN:
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"message": "not allowed to change group photo",
 			})
 			return
 
-		case "group not found":
+		case ERR_GROUP_NOT_FOUND:
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"message": "group not found",

@@ -3,7 +3,12 @@ package database
 import (
 	"database/sql"
 	"errors"
+	"strconv"
 )
+
+// ErrForbidden is used when a user is not authorized to perform an action.
+// Defining it here resolves the "repeated string literal" linter error.
+var ErrForbidden = errors.New("forbidden")
 
 // CHECK MEMBERSHIP
 func (db *appdbimpl) GetGroupMember(groupID, userID string) (bool, error) {
@@ -55,7 +60,7 @@ func (db *appdbimpl) AddUserToGroup(groupID, userIDToAdd, requesterID string) er
 		return err
 	}
 	if !isMember {
-		return errors.New("forbidden")
+		return ErrForbidden
 	}
 
 	// add
@@ -75,7 +80,7 @@ func (db *appdbimpl) LeaveGroup(groupID, userID, requesterID string) error {
 
 	// check if user we want to delete is THIS user
 	if userID != requesterID {
-		return errors.New("forbidden")
+		return ErrForbidden
 	}
 
 	var tmp string
@@ -140,7 +145,7 @@ func (db *appdbimpl) SetGroupName(groupID, requesterID, newName string) error {
     `, groupID, requesterID).Scan(&tmp)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return errors.New("forbidden")
+		return ErrForbidden
 	}
 	if err != nil {
 		return err
@@ -196,7 +201,7 @@ func (db *appdbimpl) SetGroupPhoto(groupID, requesterID, newPhotoURL string) err
     `, groupID, requesterID).Scan(&tmp)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return errors.New("forbidden")
+		return ErrForbidden
 	}
 	if err != nil {
 		return err
@@ -214,4 +219,35 @@ func (db *appdbimpl) SetGroupPhoto(groupID, requesterID, newPhotoURL string) err
 	}
 
 	return nil
+}
+
+// CreateGroup creates a new group conversation and adds the creator as a participant
+func (db *appdbimpl) CreateGroup(name string, ownerID string) (Conversation, error) {
+	var group Conversation
+
+	// 1. Insert the new group into the conversations table
+	// We mark it as is_group = true (or 1)
+	res, err := db.c.Exec(`INSERT INTO conversations (name, is_group, photo_url) VALUES (?, 1, '')`, name)
+	if err != nil {
+		return group, err
+	}
+
+	lastInsertID, err := res.LastInsertId()
+	if err != nil {
+		return group, err
+	}
+
+	// 2. Add the creator (owner) to the participants table
+	_, err = db.c.Exec(`INSERT INTO participants (user_id, conversation_id) VALUES (?, ?)`, ownerID, lastInsertID)
+	if err != nil {
+		return group, err
+	}
+
+	// 3. Return the new group object
+	group.ID = strconv.FormatInt(lastInsertID, 10)
+	group.Name = name
+	group.IsGroup = true
+	group.PhotoUrl = ""
+
+	return group, nil
 }

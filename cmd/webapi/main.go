@@ -70,7 +70,7 @@ func run() error {
 	// Start server in goroutine
 	serverErrors := make(chan error, 1)
 	go func() {
-		logger.Infof("API is listening on http://localhost:3000")
+		logger.Infof("API is listening on %s", server.Addr)
 		serverErrors <- server.ListenAndServe()
 	}()
 
@@ -99,21 +99,6 @@ func run() error {
 
 	logger.Info("Server stopped gracefully")
 	return nil
-}
-
-func applyCORS(next http.Handler) http.Handler {
-    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-        w.Header().Set("Access-Control-Allow-Origin", "*")
-        w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS, PUT, DELETE")
-        w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-        
-        if r.Method == "OPTIONS" {
-            w.WriteHeader(http.StatusOK)
-            return
-        }
-        
-        next.ServeHTTP(w, r)
-    })
 }
 
 func corsHandler(h http.Handler) http.Handler {

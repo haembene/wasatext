@@ -2,16 +2,11 @@ package database
 
 import (
 	"database/sql"
+	"errors"
 	"strings"
 
 	"github.com/google/uuid"
 )
-
-type User struct {
-	ID       string
-	Name     string
-	PhotoUrl string
-}
 
 func (db *appdbimpl) LoginOrCreateUser(name string) (string, error) {
 	var existingID string
@@ -25,7 +20,8 @@ func (db *appdbimpl) LoginOrCreateUser(name string) (string, error) {
 		return existingID, nil // user exists
 	}
 
-	if err != sql.ErrNoRows {
+	// Fixed: Use errors.Is instead of direct comparison
+	if !errors.Is(err, sql.ErrNoRows) {
 		return "", err // real DB error
 	}
 
@@ -58,11 +54,16 @@ func (db *appdbimpl) FindUsers(prefix string) ([]User, error) {
 
 	for rows.Next() {
 		var u User
-		err := rows.Scan(&u.ID, &u.Name, &u.PhotoUrl)
+		err := rows.Scan(&u.ID, &u.Name, &u.PhotoURL)
 		if err != nil {
 			return nil, err
 		}
 		result = append(result, u)
+	}
+
+	// Fixed: Check for errors after iteration
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return result, nil
@@ -75,7 +76,8 @@ func (db *appdbimpl) IsUserNameTaken(name string) (bool, error) {
 		name,
 	).Scan(&id)
 
-	if err == sql.ErrNoRows {
+	// Fixed: Use errors.Is instead of direct comparison
+	if errors.Is(err, sql.ErrNoRows) {
 		return false, nil // name is free
 	}
 

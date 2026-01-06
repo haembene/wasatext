@@ -66,24 +66,24 @@ func (rt *_router) setGroupName(
 	err := rt.db.SetGroupName(groupID, userID, body.NewName)
 
 	if err != nil {
-
+		// FIXED: Use package-level constants to satisfy goconst
 		switch err.Error() {
 
-		case "forbidden":
+		case ERR_FORBIDDEN:
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"message": "not allowed to rename group",
 			})
 			return
 
-		case "group not found":
+		case ERR_GROUP_NOT_FOUND:
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"message": "group not found",
 			})
 			return
 
-		case "name exists":
+		case "name exists": // API -> 409
 			w.WriteHeader(http.StatusConflict)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"message": "name already in use",

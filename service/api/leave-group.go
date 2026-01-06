@@ -3,10 +3,19 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"regexp"
 
 	"github.com/haembene/wasatext/service/api/reqcontext"
 	"github.com/julienschmidt/httprouter"
+)
+
+// Define constants to satisfy 'goconst' linter
+// Note: If you get "redeclared in this block" errors, move these constants
+// to a shared file like 'api.go' and remove them from here.
+const (
+	ERR_GROUP_NOT_FOUND = "group not found"
+	ERR_USER_NOT_FOUND  = "user not found"
+	ERR_FORBIDDEN       = "forbidden"
+	ERR_NOT_IN_GROUP    = "not in group"
 )
 
 func (rt *_router) leaveGroup(
@@ -56,24 +65,24 @@ func (rt *_router) leaveGroup(
 	if err != nil {
 
 		switch err.Error() {
-		case "group not found":
+		case ERR_GROUP_NOT_FOUND:
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "group not found"})
 			return
 
-		case "user not found":
+		case ERR_USER_NOT_FOUND:
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "user not found"})
 			return
 
-		case "not in group":
+		case ERR_NOT_IN_GROUP:
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"message": "user is not a member of this group",
 			})
 			return
 
-		case "forbidden":
+		case ERR_FORBIDDEN:
 			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(map[string]string{
 				"message": "cannot remove another user",
@@ -96,6 +105,6 @@ func isValidID(id string) bool {
 	if len(id) < 10 || len(id) > 30 {
 		return false
 	}
-	ok, _ := regexp.MatchString(`^[a-zA-Z0-9]+$`, id)
-	return ok
+	// Optimization: Reuse the compiled regex from forward-message.go
+	return fwdIDRegex.MatchString(id)
 }
