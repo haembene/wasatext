@@ -424,19 +424,26 @@ paths:
 
   /groups:
     post:
+      tags: ["groups"]
       summary: Create a new group conversation
       operationId: createGroup
+      description: |
+        Creates a new group chat. the user who creates the group is 
+        automatically assigned as the first member.
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              description: Request payload for creating a new group.
               properties:
                 name:
                   type: string
+                  description: The display name of the group.
                   minLength: 3
                   maxLength: 30
+                  pattern: "^[a-zA-Z0-9 ]+$"
               required:
                 - name
       responses:
@@ -448,6 +455,10 @@ paths:
                 $ref: '#/components/schemas/Conversation'
         '400':
           description: Invalid name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /groups/{id}/members:
     post:
@@ -836,6 +847,7 @@ components:
           description: Conversation name
           minLength: 3
           maxLength: 32
+          pattern: "^[a-zA-Z0-9 ]+$"
         photoUrl:
           type: string
           format: url
