@@ -14,6 +14,11 @@ export default {
             return this.$route.path !== '/login';
         }
     },
+    watch: {
+        $route() {
+            this.username = localStorage.getItem("wasa_username") || "User";
+        }
+    },
     methods: {
         logout() {
             localStorage.removeItem("wasa_token");

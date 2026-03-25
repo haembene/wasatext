@@ -1,0 +1,20 @@
+# Use the official Node.js LTS image as the base image for the build stage
+FROM node:lts as builder
+
+# Set the working directory inside the container to /app
+WORKDIR /app
+
+# Copy the webui directory from the host to the /app directory in the container
+COPY webui webui
+
+# Set the working directory inside the container to /app/webui
+WORKDIR /app/webui
+
+# Run the build command to create a production build of the web UI
+RUN yarn run build-prod
+
+# Use the official Nginx stable image as the base image for the final stage
+FROM nginx:stable
+
+# Copy the built files from the builder stage to the Nginx HTML directory
+COPY --from=builder /app/webui/dist /usr/share/nginx/html

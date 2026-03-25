@@ -14,8 +14,9 @@ type User struct {
 }
 
 type Reaction struct {
-	ReactorID string `json:"reactorId"`
-	Emoticon  string `json:"emoticon"`
+	ReactorID   string `json:"reactorId"`
+	ReactorName string `json:"reactorName,omitempty"`
+	Emoticon    string `json:"emoticon"`
 }
 
 // Conversation represents a chat or group conversation
@@ -28,14 +29,16 @@ type Conversation struct {
 
 // Message represents a single message
 type Message struct {
-	ID        string     `json:"id"`
-	SenderID  string     `json:"senderId"`
-	Content   string     `json:"content"`
-	Timestamp string     `json:"timestamp"`
-	IsPhoto   bool       `json:"isPhoto"`
-	Status    int        `json:"status"`
-	ReplyTo   string     `json:"replyTo,omitempty"`
-	Reactions []Reaction `json:"reactions"`
+	ID         string     `json:"id"`
+	SenderID   string     `json:"senderId"`
+	SenderName string     `json:"senderName,omitempty"`
+	SenderPhoto string    `json:"senderPhoto,omitempty"`
+	Content    string     `json:"content"`
+	Timestamp  string     `json:"timestamp"`
+	IsPhoto    bool       `json:"isPhoto"`
+	Status     int        `json:"status"`
+	ReplyTo    string     `json:"replyTo,omitempty"`
+	Reactions  []Reaction `json:"reactions"`
 }
 
 // ConversationSnippet is used for the list of conversations
@@ -77,6 +80,7 @@ type AppDatabase interface {
 	CreateGroup(name string, ownerID string) (Conversation, error)
 	AddUserToGroup(groupID, userIDToAdd, requesterID string) error
 	LeaveGroup(groupID, userID, requesterID string) error
+	GetGroupMembers(groupID string, userID string) ([]User, error)
 	SetGroupName(groupID, requesterID, newName string) error
 	SetGroupPhoto(groupID, requesterID, newPhotoURL string) error
 
@@ -149,6 +153,28 @@ func New(db *sql.DB) (AppDatabase, error) {
 
 	} else if err != nil {
 		return nil, fmt.Errorf("error checking users table: %w", err)
+	}
+
+	// Force-create group tables even on existing databases to resolve legacy issues
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS groups (
+			id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			photoUrl TEXT NOT NULL
+		);
+		CREATE TABLE IF NOT EXISTS group_members (
+			groupId TEXT NOT NULL,
+			userId TEXT NOT NULL,
+			PRIMARY KEY (groupId, userId)
+		);
+		CREATE TABLE IF NOT EXISTS message_reads (
+			messageId TEXT NOT NULL,
+			userId TEXT NOT NULL,
+			PRIMARY KEY (messageId, userId)
+		);
+	`)
+	if err != nil {
+		return nil, fmt.Errorf("error ensuring group tables exist: %w", err)
 	}
 
 	return &appdbimpl{c: db}, nil

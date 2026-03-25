@@ -39,16 +39,21 @@ func (db *appdbimpl) SendMessage(senderID, recipientID, content string, replyTo 
 		replyToVal = *replyTo
 	}
 
+	// Prepare SenderName struct definition
+	var senderName string
+	_ = db.c.QueryRow(`SELECT name FROM users WHERE id = ?`, senderID).Scan(&senderName)
+
 	// return message
 	msg := Message{
-		ID:        id,
-		SenderID:  senderID,
-		Timestamp: timestamp,
-		Content:   content,
-		IsPhoto:   isPhoto,
-		Status:    0,
-		ReplyTo:   replyToVal, // <--- FIXED: Assigns string (not *string)
-		Reactions: []Reaction{},
+		ID:         id,
+		SenderID:   senderID,
+		SenderName: senderName,
+		Timestamp:  timestamp,
+		Content:    content,
+		IsPhoto:    isPhoto,
+		Status:     0,
+		ReplyTo:    replyToVal, // <--- FIXED: Assigns string (not *string)
+		Reactions:  []Reaction{},
 	}
 
 	return msg, nil
@@ -104,6 +109,9 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 		newReplyToPtr = &original.ReplyTo
 	}
 
+	// Inject forwarding markup string
+	fwdContent := "|FORWARDED|" + original.Content
+
 	_, err = db.c.Exec(`
 		INSERT INTO messages (id, senderId, recipientId, timestamp, content, isPhoto, status, replyTo)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
@@ -112,26 +120,30 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 		senderID, // person who forwards
 		newRecipientID,
 		timestamp,
-		original.Content, // copy text
+		fwdContent, // copy text WITH markers
 		original.IsPhoto, // copy type
 		0,                // sent
-		newReplyToPtr,    // <--- FIXED: Pass pointer or nil to SQL
+		newReplyToPtr,    // Pass pointer or nil to SQL
 	)
 
 	if err != nil {
 		return Message{}, err
 	}
 
+	var senderName string
+	_ = db.c.QueryRow(`SELECT name FROM users WHERE id = ?`, senderID).Scan(&senderName)
+
 	// return new message
 	forwarded := Message{
-		ID:        newID,
-		SenderID:  senderID,
-		Timestamp: timestamp,
-		Content:   original.Content,
-		IsPhoto:   original.IsPhoto,
-		Status:    0,
-		ReplyTo:   original.ReplyTo, // This is already a string
-		Reactions: []Reaction{},
+		ID:         newID,
+		SenderID:   senderID,
+		SenderName: senderName,
+		Timestamp:  timestamp,
+		Content:    fwdContent, // Display active
+		IsPhoto:    original.IsPhoto,
+		Status:     0,
+		ReplyTo:    original.ReplyTo, 
+		Reactions:  []Reaction{},
 	}
 
 	return forwarded, nil
@@ -195,9 +207,17 @@ func (db *appdbimpl) AddReaction(messageID, userID, emoticon string) error {
 		return err
 	}
 
+	// enforce constraint: user can add NO MORE THAN ONE reaction per message
+	_, err = db.c.Exec(`
+		DELETE FROM reactions WHERE messageId = ? AND reactorId = ?
+	`, messageID, userID)
+	if err != nil {
+		return err
+	}
+
 	// make reaction
 	_, err = db.c.Exec(`
-		INSERT OR IGNORE INTO reactions (messageId, reactorId, emoticon)
+		INSERT INTO reactions (messageId, reactorId, emoticon)
 		VALUES (?, ?, ?)
 	`, messageID, userID, emoticon)
 
@@ -249,7 +269,7 @@ func (db *appdbimpl) recipientExists(id string) bool {
 	if err == nil {
 		return true
 	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return false
 	}
 
@@ -260,6 +280,10 @@ func (db *appdbimpl) recipientExists(id string) bool {
 
 func isPhotoContent(content string) bool {
 	lower := strings.ToLower(content)
+
+	if strings.Contains(content, "|PHOTO|data:image") {
+		return true
+	}
 
 	if strings.HasPrefix(lower, "http") &&
 		(strings.HasSuffix(lower, ".jpg") ||

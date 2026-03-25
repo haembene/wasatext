@@ -41,20 +41,11 @@ func (rt *_router) setMyPhoto(
 		return
 	}
 
-	// 3. Validate photoUrl
-	if len(body.PhotoUrl) == 0 || len(body.PhotoUrl) > 200 {
+	// 3. Validate photoUrl to block absolutely empty transmissions, but explicitly allow Base64 elements indefinitely over massive bytes limits. natively skipping ^data:image regex loops.
+	if len(body.PhotoUrl) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"message": "invalid photo url",
-		})
-		return
-	}
-
-	// Validate format (using package-level variable from set-group-photo.go)
-	if !urlRegex.MatchString(body.PhotoUrl) {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"message": "invalid url format",
 		})
 		return
 	}

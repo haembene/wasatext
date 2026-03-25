@@ -23,7 +23,7 @@ func (rt *_router) commentMessage(
 
 	// 1. Extract messageId
 	messageID := ps.ByName("id")
-	if len(messageID) < 10 || len(messageID) > 30 {
+	if len(messageID) < 10 || len(messageID) > 64 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid message id"})
 		return
@@ -46,7 +46,7 @@ func (rt *_router) commentMessage(
 	}
 
 	// 4. Validate emoticon
-	if len(body.Emoticon) < 1 || len(body.Emoticon) > 4 {
+	if len(body.Emoticon) < 1 || len(body.Emoticon) > 16 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid emoticon length"})
 		return

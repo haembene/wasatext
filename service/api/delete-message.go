@@ -28,7 +28,7 @@ func (rt *_router) deleteMessage(
 
 	// 2. Extract message ID from path
 	msgID := ps.ByName("id")
-	if len(msgID) < 10 || len(msgID) > 30 {
+	if len(msgID) < 10 || len(msgID) > 64 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"message": "invalid message id",

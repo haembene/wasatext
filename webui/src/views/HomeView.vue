@@ -13,19 +13,21 @@ export default {
             // Create Group Data
             showCreateGroup: false,
             newGroupName: "",
+            
+            refreshInterval: null,
         }
     },
     methods: {
-        async refresh() {
-            this.loading = true;
+        async refresh(silent = false) {
+            if (!silent) this.loading = true;
             this.errormsg = null;
             try {
                 let response = await this.$axios.get("/conversations");
                 this.conversations = response.data;
             } catch (e) {
-                this.errormsg = e.toString();
+                if (!silent) this.errormsg = e.toString();
             }
-            this.loading = false;
+            if (!silent) this.loading = false;
         },
 
         async searchUsers() {
@@ -40,18 +42,21 @@ export default {
             }
         },
 
-        async openChat(targetUserID) {
+        async startNewChat(targetUserID) {
             try {
-                // Ensure conversation exists
+                // Ensure conversation exists for unfamiliar users
                 let response = await this.$axios.put("/conversations/" + targetUserID, {
                     name: "New Chat" 
                 });
-                // Some backends return .ID, some .id. Handling both just in case.
                 let conversationId = response.data.ID || response.data.id || response.data.conversationId;
                 this.$router.push("/chat/" + conversationId);
             } catch (e) {
                 this.errormsg = "Failed to start conversation: " + e.toString();
             }
+        },
+
+        openExistingChat(convoId) {
+            this.$router.push("/chat/" + convoId);
         },
 
         async createGroup() {
@@ -83,7 +88,15 @@ export default {
         }
     },
     mounted() {
-        this.refresh()
+        this.refresh();
+        this.refreshInterval = setInterval(() => {
+            this.refresh(true);
+        }, 1500);
+    },
+    beforeUnmount() {
+        if (this.refreshInterval) {
+            clearInterval(this.refreshInterval);
+        }
     }
 }
 </script>
@@ -123,9 +136,9 @@ export default {
                 </div>
                 <div v-if="searchResults && searchResults.length > 0" class="list-group mt-2">
                     <a href="#" class="list-group-item list-group-item-action" 
-                       v-for="user in searchResults" :key="user.ID" 
-                       @click.prevent="openChat(user.ID)">
-                        Start chat with: <strong>{{ user.Name }}</strong>
+                       v-for="user in searchResults" :key="user.id || user.ID" 
+                       @click.prevent="startNewChat(user.id || user.ID)">
+                        Start chat with: <strong>{{ user.name || user.Name }}</strong>
                     </a>
                 </div>
             </div>
@@ -138,23 +151,23 @@ export default {
                 <a href="#" 
                    class="list-group-item list-group-item-action d-flex gap-3 py-3" 
                    v-for="c in conversations" 
-                   :key="c.ID"
-                   @click.prevent="openChat(c.ID)"
+                   :key="c.id || c.ID"
+                   @click.prevent="openExistingChat(c.id || c.ID)"
                 >
-                    <img :src="c.PhotoUrl || 'https://via.placeholder.com/40'" alt="pic" width="40" height="40" class="rounded-circle flex-shrink-0">
+                    <img :src="c.photoUrl || c.PhotoUrl || 'https://via.placeholder.com/40'" alt="pic" width="40" height="40" class="rounded-circle flex-shrink-0">
                     <div class="d-flex gap-2 w-100 justify-content-between">
                         <div>
                             <h6 class="mb-0">
-                                {{ c.Name }} 
-                                <span v-if="c.IsGroup" class="badge bg-secondary ms-1">Group</span>
+                                {{ c.name || c.Name }} 
+                                <span v-if="c.isGroup || c.IsGroup" class="badge bg-secondary ms-1">Group</span>
                             </h6>
                             <p class="mb-0 opacity-75 text-truncate" style="max-width: 300px;">
-                                {{ c.LatestMessage ? c.LatestMessage.Content : 'No messages' }}
+                                {{ c.latestMessage ? (c.latestMessage.content || c.latestMessage.Content) : 'No messages' }}
                             </p>
                         </div>
                         <small class="opacity-50 text-nowrap">
-                            {{ c.LatestMessage ? formatTime(c.LatestMessage.Timestamp) : '' }}
-                            <span v-if="c.UnreadCount > 0" class="badge bg-danger ms-2">{{ c.UnreadCount }}</span>
+                            {{ c.latestMessage ? formatTime(c.latestMessage.timestamp || c.latestMessage.Timestamp) : '' }}
+                            <span v-if="(c.unreadCount || c.UnreadCount) > 0" class="badge bg-danger ms-2">{{ c.unreadCount || c.UnreadCount }}</span>
                         </small>
                     </div>
                 </a>

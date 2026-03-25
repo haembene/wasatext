@@ -1,0 +1,53 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Node modules
+node_modules/
+webui/node_modules/
+
+# Go build files
+webapi
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Vue dist / WebUI build
+webui/dist/
+webui/dist-ssr/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE configs
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# MacOS
+.DS_Store
+
+# Temporary test scripts
+testdb.go
+test-db-send.go
+/tmp/
+
+# Ignore linters and Yarn PnP
+webui/eslint.config.js
+webui/.pnp.*
+.yarn/
+vendor/
+
+# Ignore debug/temp files
+amina.json
+api.txt
+spectral.js
+

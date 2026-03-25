@@ -24,7 +24,7 @@ func (rt *_router) setGroupName(
 	// 1. Extract groupId from path
 	groupID := ps.ByName("id")
 
-	if len(groupID) < 10 || len(groupID) > 30 {
+	if len(groupID) < 10 || len(groupID) > 64 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid group id"})
 		return
@@ -56,7 +56,7 @@ func (rt *_router) setGroupName(
 		return
 	}
 
-	if ok, _ := regexp.MatchString(`^[a-zA-Z0-9 ]+$`, body.NewName); !ok {
+	if ok, _ := regexp.MatchString(`^[\p{L}\p{N} \-_.,!?]+$`, body.NewName); !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid group name format"})
 		return

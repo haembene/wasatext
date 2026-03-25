@@ -26,7 +26,7 @@ func (rt *_router) setGroupPhoto(
 
 	// 1. Parse group ID
 	groupID := ps.ByName("id")
-	if len(groupID) < 10 || len(groupID) > 30 {
+	if len(groupID) < 10 || len(groupID) > 64 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid group id"})
 		return
@@ -53,20 +53,11 @@ func (rt *_router) setGroupPhoto(
 		return
 	}
 
-	// 4. Validate photo URL
-	if len(body.PhotoUrl) == 0 || len(body.PhotoUrl) > 200 {
+	// 4. Validate photo URL bounds implicitly allocating indefinitely large File payload data resolving inline base64 formats.
+	if len(body.PhotoUrl) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"message": "invalid photo url length",
-		})
-		return
-	}
-
-	// simple URL format validation using pre-compiled regex
-	if !urlRegex.MatchString(body.PhotoUrl) {
-		w.WriteHeader(http.StatusBadRequest)
-		_ = json.NewEncoder(w).Encode(map[string]string{
-			"message": "invalid url format",
 		})
 		return
 	}

@@ -3,7 +3,9 @@ package database
 import (
 	"database/sql"
 	"errors"
-	"strconv"
+	
+	"strings"
+	"github.com/google/uuid"
 )
 
 // ErrForbidden is used when a user is not authorized to perform an action.
@@ -161,7 +163,7 @@ func (db *appdbimpl) SetGroupName(groupID, requesterID, newName string) error {
 		// another group with the same name - conflict
 		return errors.New("conflict") // API → 409
 	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
 
@@ -224,30 +226,66 @@ func (db *appdbimpl) SetGroupPhoto(groupID, requesterID, newPhotoURL string) err
 // CreateGroup creates a new group conversation and adds the creator as a participant
 func (db *appdbimpl) CreateGroup(name string, ownerID string) (Conversation, error) {
 	var group Conversation
+	groupID := strings.ReplaceAll(uuid.New().String(), "-", "")
 
-	// 1. Insert the new group into the conversations table
-	// We mark it as is_group = true (or 1)
-	res, err := db.c.Exec(`INSERT INTO conversations (name, is_group, photo_url) VALUES (?, 1, '')`, name)
+	// 1. Insert into groups table
+	_, err := db.c.Exec(`INSERT INTO groups (id, name, photoUrl) VALUES (?, ?, '')`, groupID, name)
 	if err != nil {
 		return group, err
 	}
 
-	lastInsertID, err := res.LastInsertId()
-	if err != nil {
-		return group, err
-	}
-
-	// 2. Add the creator (owner) to the participants table
-	_, err = db.c.Exec(`INSERT INTO participants (user_id, conversation_id) VALUES (?, ?)`, ownerID, lastInsertID)
+	// 2. Add the creator to group_members table
+	_, err = db.c.Exec(`INSERT INTO group_members (groupId, userId) VALUES (?, ?)`, groupID, ownerID)
 	if err != nil {
 		return group, err
 	}
 
 	// 3. Return the new group object
-	group.ID = strconv.FormatInt(lastInsertID, 10)
+	group.ID = groupID
 	group.Name = name
 	group.IsGroup = true
 	group.PhotoUrl = ""
 
 	return group, nil
+}
+
+func (db *appdbimpl) GetGroupMembers(groupID string, userID string) ([]User, error) {
+	// check if user is a member
+	var tmp string
+	err := db.c.QueryRow(`
+		SELECT userId FROM group_members 
+		WHERE groupId = ? AND userId = ?
+	`, groupID, userID).Scan(&tmp)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, errors.New("forbidden")
+		}
+		return nil, err
+	}
+
+	rows, err := db.c.Query(`
+		SELECT u.id, u.name, u.photoUrl 
+		FROM group_members gm
+		JOIN users u ON gm.userId = u.id
+		WHERE gm.groupId = ?
+	`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = rows.Close() }()
+
+	var members []User
+	for rows.Next() {
+		var u User
+		if err := rows.Scan(&u.ID, &u.Name, &u.PhotoURL); err != nil {
+			return nil, err
+		}
+		members = append(members, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return members, nil
 }

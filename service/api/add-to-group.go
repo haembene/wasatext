@@ -35,7 +35,7 @@ func (rt *_router) addToGroup(
 
 	// 2. Path param: groupId
 	groupID := ps.ByName("id")
-	if len(groupID) < 10 || len(groupID) > 30 {
+	if len(groupID) < 10 || len(groupID) > 64 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid groupId"})
 		return
@@ -55,7 +55,7 @@ func (rt *_router) addToGroup(
 	}
 
 	// 4. Validate user ID
-	if len(body.UserID) < 10 || len(body.UserID) > 30 {
+	if len(body.UserID) < 10 || len(body.UserID) > 64 {
 		w.WriteHeader(http.StatusBadRequest)
 		// Fixed: Use constant or consistent string for goconst
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid userId"})

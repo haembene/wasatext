@@ -97,7 +97,14 @@ func (db *appdbimpl) GetMyConversations(userID string, usernameFilter *string) (
 	// Fixed: Explicitly ignore error in defer to satisfy errcheck
 	defer func() { _ = rows.Close() }()
 
-	out := []ConversationSnippet{}
+	// 5. Read all basic info first to free the connection
+	type convRow struct {
+		id       string
+		name     string
+		photo    string
+		isGroup  bool
+	}
+	var cRows []convRow
 
 	for rows.Next() {
 		var id, name, photo, latestTs sql.NullString
@@ -107,58 +114,76 @@ func (db *appdbimpl) GetMyConversations(userID string, usernameFilter *string) (
 			return nil, err
 		}
 
-		// Don't show empty chats
-		if !latestTs.Valid {
-			continue
-		}
-
 		isGroup := false
 		if isGroupInt.Valid && isGroupInt.Int64 == 1 {
 			isGroup = true
 		}
 
-		// get latest message
-		var latestMsg Message
-		if isGroup {
-			latestMsg, err = db.getLatestMessageForGroup(id.String)
-		} else {
-			latestMsg, err = db.getLatestMessageForDirect(userID, id.String)
-		}
-		if err != nil {
-			return nil, err
-		}
-
-		// count unread
-		unread := 0
-		if isGroup {
-			// messages in a group, sent not by me and not read
-			_ = db.c.QueryRow(`
-                SELECT COUNT(*) FROM messages
-                WHERE recipientId = ? AND senderId != ? AND status < 2
-            `, id.String, userID).Scan(&unread)
-		} else {
-			// personal messages: i am receiver, they are sender, status < 2
-			_ = db.c.QueryRow(`
-                SELECT COUNT(*) FROM messages
-                WHERE recipientId = ? AND senderId = ? AND status < 2
-            `, userID, id.String).Scan(&unread)
-		}
-
-		sn := ConversationSnippet{
-			ID:            id.String,
-			Name:          name.String,
-			PhotoUrl:      photo.String,
-			LatestMessage: &latestMsg,
-			IsGroup:       isGroup,
-			UnreadCount:   unread,
-		}
-
-		out = append(out, sn)
+		cRows = append(cRows, convRow{
+			id:      id.String,
+			name:    name.String,
+			photo:   photo.String,
+			isGroup: isGroup,
+		})
 	}
 
 	// Check for errors after iteration
 	if err := rows.Err(); err != nil {
 		return nil, err
+	}
+
+	// Close rows explicitly before making nested queries
+	rows.Close()
+
+	out := []ConversationSnippet{}
+
+	// 6. Do nested queries without holding the outer Rows lock
+	for _, cr := range cRows {
+		// get latest message
+		var latestMsg Message
+		var pointerMsg *Message
+		if cr.isGroup {
+			latestMsg, err = db.getLatestMessageForGroup(cr.id)
+		} else {
+			latestMsg, err = db.getLatestMessageForDirect(userID, cr.id)
+		}
+
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				pointerMsg = nil
+			} else {
+				return nil, err
+			}
+		} else {
+			pointerMsg = &latestMsg
+		}
+
+		// count unread
+		unread := 0
+		if cr.isGroup {
+			// messages in a group, sent not by me and not read
+			_ = db.c.QueryRow(`
+                SELECT COUNT(*) FROM messages
+                WHERE recipientId = ? AND senderId != ? AND status < 2
+            `, cr.id, userID).Scan(&unread)
+		} else {
+			// personal messages: i am receiver, they are sender, status < 2
+			_ = db.c.QueryRow(`
+                SELECT COUNT(*) FROM messages
+                WHERE recipientId = ? AND senderId = ? AND status < 2
+            `, userID, cr.id).Scan(&unread)
+		}
+
+		sn := ConversationSnippet{
+			ID:            cr.id,
+			Name:          cr.name,
+			PhotoUrl:      cr.photo,
+			LatestMessage: pointerMsg,
+			IsGroup:       cr.isGroup,
+			UnreadCount:   unread,
+		}
+
+		out = append(out, sn)
 	}
 
 	return out, nil
@@ -186,10 +211,11 @@ func (db *appdbimpl) GetConversation(meID, conversationID string) ([]Message, er
 			return nil, err
 		}
 		rows, err := db.c.Query(`
-            SELECT id, senderId, timestamp, content, isPhoto, status, replyTo
-            FROM messages
-            WHERE recipientId = ?
-            ORDER BY timestamp DESC
+            SELECT m.id, m.senderId, m.timestamp, m.content, m.isPhoto, m.status, m.replyTo, u.name, u.photoUrl
+            FROM messages m
+            LEFT JOIN users u ON m.senderId = u.id
+            WHERE m.recipientId = ?
+            ORDER BY m.timestamp DESC
             LIMIT 100
         `, conversationID)
 		if err != nil {
@@ -203,11 +229,12 @@ func (db *appdbimpl) GetConversation(meID, conversationID string) ([]Message, er
 
 	// direct chat
 	rows, err := db.c.Query(`
-        SELECT id, senderId, timestamp, content, isPhoto, status, replyTo
-        FROM messages
-        WHERE (senderId = ? AND recipientId = ?)
-           OR (senderId = ? AND recipientId = ?)
-        ORDER BY timestamp DESC
+        SELECT m.id, m.senderId, m.timestamp, m.content, m.isPhoto, m.status, m.replyTo, u.name, u.photoUrl
+        FROM messages m
+        LEFT JOIN users u ON m.senderId = u.id
+        WHERE (m.senderId = ? AND m.recipientId = ?)
+           OR (m.senderId = ? AND m.recipientId = ?)
+        ORDER BY m.timestamp DESC
         LIMIT 100
     `, meID, conversationID, conversationID, meID)
 	if err != nil {
@@ -221,21 +248,28 @@ func (db *appdbimpl) GetConversation(meID, conversationID string) ([]Message, er
 
 func (db *appdbimpl) getLatestMessageForDirect(meID, otherID string) (Message, error) {
 	row := db.c.QueryRow(`
-        SELECT id, senderId, timestamp, content, isPhoto, status, replyTo
-        FROM messages
-        WHERE (senderId = ? AND recipientId = ?)
-           OR (senderId = ? AND recipientId = ?)
-        ORDER BY timestamp DESC
+        SELECT m.id, m.senderId, m.timestamp, m.content, m.isPhoto, m.status, m.replyTo, u.name, u.photoUrl
+        FROM messages m
+        LEFT JOIN users u ON m.senderId = u.id
+        WHERE (m.senderId = ? AND m.recipientId = ?)
+           OR (m.senderId = ? AND m.recipientId = ?)
+        ORDER BY m.timestamp DESC
         LIMIT 1
     `, meID, otherID, otherID, meID)
 
 	var m Message
-	var replyTo sql.NullString
-	if err := row.Scan(&m.ID, &m.SenderID, &m.Timestamp, &m.Content, &m.IsPhoto, &m.Status, &replyTo); err != nil {
+	var replyTo, senderName, senderPhoto sql.NullString
+	if err := row.Scan(&m.ID, &m.SenderID, &m.Timestamp, &m.Content, &m.IsPhoto, &m.Status, &replyTo, &senderName, &senderPhoto); err != nil {
 		return Message{}, err
 	}
 	if replyTo.Valid {
 		m.ReplyTo = replyTo.String
+	}
+	if senderName.Valid {
+		m.SenderName = senderName.String
+	}
+	if senderPhoto.Valid {
+		m.SenderPhoto = senderPhoto.String
 	}
 
 	// load reactions
@@ -264,20 +298,27 @@ func (db *appdbimpl) getLatestMessageForDirect(meID, otherID string) (Message, e
 
 func (db *appdbimpl) getLatestMessageForGroup(groupID string) (Message, error) {
 	row := db.c.QueryRow(`
-        SELECT id, senderId, timestamp, content, isPhoto, status, replyTo
-        FROM messages
-        WHERE recipientId = ?
-        ORDER BY timestamp DESC
+        SELECT m.id, m.senderId, m.timestamp, m.content, m.isPhoto, m.status, m.replyTo, u.name, u.photoUrl
+        FROM messages m
+        LEFT JOIN users u ON m.senderId = u.id
+        WHERE m.recipientId = ?
+        ORDER BY m.timestamp DESC
         LIMIT 1
     `, groupID)
 
 	var m Message
-	var replyTo sql.NullString
-	if err := row.Scan(&m.ID, &m.SenderID, &m.Timestamp, &m.Content, &m.IsPhoto, &m.Status, &replyTo); err != nil {
+	var replyTo, senderName, senderPhoto sql.NullString
+	if err := row.Scan(&m.ID, &m.SenderID, &m.Timestamp, &m.Content, &m.IsPhoto, &m.Status, &replyTo, &senderName, &senderPhoto); err != nil {
 		return Message{}, err
 	}
 	if replyTo.Valid {
 		m.ReplyTo = replyTo.String
+	}
+	if senderName.Valid {
+		m.SenderName = senderName.String
+	}
+	if senderPhoto.Valid {
+		m.SenderPhoto = senderPhoto.String
 	}
 
 	// load reactions
@@ -304,43 +345,24 @@ func (db *appdbimpl) getLatestMessageForGroup(groupID string) (Message, error) {
 	return m, nil
 }
 
-// reads rows (id, senderId, timestamp, content, isPhoto, status, replyTo)
-// and adds reactions to them
 func (db *appdbimpl) readMessagesWithReactions(rows *sql.Rows) ([]Message, error) {
+	// 1. Read all messages into memory first to avoid nested database cursors lock (Deadlock prevention)
 	msgs := []Message{}
 	for rows.Next() {
 		var m Message
-		var reply sql.NullString
-		if err := rows.Scan(&m.ID, &m.SenderID, &m.Timestamp, &m.Content, &m.IsPhoto, &m.Status, &reply); err != nil {
+		var reply, senderName, senderPhoto sql.NullString
+		if err := rows.Scan(&m.ID, &m.SenderID, &m.Timestamp, &m.Content, &m.IsPhoto, &m.Status, &reply, &senderName, &senderPhoto); err != nil {
 			return nil, err
 		}
 		if reply.Valid {
 			m.ReplyTo = reply.String
 		}
-
-		// load reactions
-		rrows, err := db.c.Query(`SELECT reactorId, emoticon FROM reactions WHERE messageId = ?`, m.ID)
-		if err != nil {
-			return nil, err
+		if senderName.Valid {
+			m.SenderName = senderName.String
 		}
-
-		// Iterate inner rows
-		for rrows.Next() {
-			var r Reaction
-			if err := rrows.Scan(&r.ReactorID, &r.Emoticon); err != nil {
-				_ = rrows.Close() // Fixed: Explicitly ignore close error
-				return nil, err
-			}
-			m.Reactions = append(m.Reactions, r)
+		if senderPhoto.Valid {
+			m.SenderPhoto = senderPhoto.String
 		}
-
-		// Check for inner loop errors
-		if err := rrows.Err(); err != nil {
-			_ = rrows.Close() // Fixed: Explicitly ignore close error
-			return nil, err
-		}
-		_ = rrows.Close() // Fixed: Explicitly ignore close error
-
 		msgs = append(msgs, m)
 	}
 
@@ -349,15 +371,101 @@ func (db *appdbimpl) readMessagesWithReactions(rows *sql.Rows) ([]Message, error
 		return nil, err
 	}
 
+	// We must close rows before issuing nested queries to avoid connection pool starvation / locking
+	rows.Close()
+
+	// 2. Fetch reactions for the loaded messages
+	for i := range msgs {
+		m := &msgs[i]
+
+		// load reactions
+		rrows, err := db.c.Query(`
+			SELECT r.reactorId, r.emoticon, u.name 
+			FROM reactions r
+			LEFT JOIN users u ON r.reactorId = u.id
+			WHERE r.messageId = ?
+		`, m.ID)
+		if err != nil {
+			return nil, err
+		}
+
+		// Iterate inner rows
+		for rrows.Next() {
+			var r Reaction
+			var reactorName sql.NullString
+			if err := rrows.Scan(&r.ReactorID, &r.Emoticon, &reactorName); err != nil {
+				_ = rrows.Close() 
+				return nil, err
+			}
+			if reactorName.Valid {
+				r.ReactorName = reactorName.String
+			}
+			m.Reactions = append(m.Reactions, r)
+		}
+
+		// Check for inner loop errors
+		if err := rrows.Err(); err != nil {
+			_ = rrows.Close() 
+			return nil, err
+		}
+		_ = rrows.Close() 
+	}
+
 	return msgs, nil
 }
 
-// CreateConversation STUB
+// CreateConversation returns the target user snippet for a direct chat
 func (db *appdbimpl) CreateConversation(userID string, otherID string) (ConversationSnippet, error) {
-	return ConversationSnippet{}, errors.New("CreateConversation not implemented")
+	var name, photoUrl string
+	err := db.c.QueryRow(`SELECT name, photoUrl FROM users WHERE id = ?`, otherID).Scan(&name, &photoUrl)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ConversationSnippet{}, errors.New("user not found")
+		}
+		return ConversationSnippet{}, err
+	}
+
+	return ConversationSnippet{
+		ID:          otherID,
+		Name:        name,
+		PhotoUrl:    photoUrl,
+		IsGroup:     false,
+		UnreadCount: 0,
+	}, nil
 }
 
-// SetConversationRead STUB
+// SetConversationRead marks conversations as read (status = 2)
 func (db *appdbimpl) SetConversationRead(userID string, conversationID string) error {
-	return errors.New("SetConversationRead not implemented")
+	var tmp string
+	// Check if the conversation is a group
+	err := db.c.QueryRow(`SELECT id FROM groups WHERE id = ?`, conversationID).Scan(&tmp)
+	if err == nil {
+		// 1. Mark as read by this user
+		_, err = db.c.Exec(`
+			INSERT OR IGNORE INTO message_reads (messageId, userId)
+			SELECT id, ? FROM messages 
+			WHERE recipientId = ? AND senderId != ? AND status < 2
+		`, userID, conversationID, userID)
+		if err != nil {
+			return err
+		}
+
+		// 2. Upgrade to status=2 for messages where all other members have read it
+		_, err = db.c.Exec(`
+			UPDATE messages
+			SET status = 2
+			WHERE recipientId = ? AND status < 2 AND (
+				SELECT COUNT(*) FROM message_reads WHERE messageId = messages.id
+			) >= (SELECT COUNT(*) FROM group_members WHERE groupId = ?) - 1
+		`, conversationID, conversationID)
+		return err
+	}
+
+	// Direct message
+	_, err = db.c.Exec(`
+		UPDATE messages
+		SET status = 2
+		WHERE recipientId = ? AND senderId = ? AND status < 2
+	`, userID, conversationID)
+	return err
 }

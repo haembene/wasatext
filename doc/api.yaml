@@ -46,6 +46,18 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuthResponse'
 
+  /liveness:
+    get:
+      tags: ["health"]
+      summary: Liveness checks
+      security: []
+      description: |
+        Returns the health status of the API.
+      operationId: checkLiveness
+      responses:
+        '200':
+          description: API is running correctly
+
   /users:
     get:
       tags : ["user"]
@@ -105,8 +117,8 @@ paths:
                   maxLength : 32 
                   pattern : "^[a-zA-Z0-9]+$" 
       responses :
-        '204':
-          description : User name successfully updated (No Content)
+        '200':
+          description : User name successfully updated (OK)
         '409':
           description : Conflict, the new name is already in use
           content : 
@@ -137,8 +149,8 @@ paths:
                   description : The URL of the new profile photo
                   maxLength : 200 
       responses :
-        '204':
-          description : Profile photo successfully updated (No Content)
+        '200':
+          description : Profile photo successfully updated (OK)
         '403':
           description : Forbidden (Not authorized)
           content : 
@@ -211,6 +223,34 @@ paths:
                   $ref : '#/components/schemas/Message'
         '404':
           description : Conversation not found
+          content : 
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ErrorResponse'
+    put:
+      tags : ["conversations"]
+      summary : Create a new conversation
+      operationId : setConversation
+      description : Creates a 1-on-1 conversation with the given user ID.
+      parameters :
+        - name : id
+          in : path
+          required : true
+          schema :
+            type : string
+            description : The ID of the target user.
+            minLength : 10 
+            maxLength : 30 
+            pattern : "^[a-zA-Z0-9]+$" 
+      responses :
+        '201':
+          description : Conversation created successfully
+          content :
+            application/json :
+              schema :
+                $ref : '#/components/schemas/ConversationSnippet'
+        '500':
+          description : Internal server error
           content : 
             application/json :
               schema :
@@ -588,8 +628,8 @@ paths:
                   maxLength : 32
                   pattern : "^[a-zA-Z0-9 ]+$" 
       responses :
-        '204':
-          description : Group name successfully updated (No Content)
+        '200':
+          description : Group name successfully updated (OK)
         '403':
           description : Forbidden (Not authorized to change group name)
           content : 
@@ -636,8 +676,8 @@ paths:
                   description : The URL of the new group photo.
                   maxLength : 200 
       responses :
-        '204':
-          description : Group photo successfully updated (No Content)
+        '200':
+          description : Group photo successfully updated (OK)
         '403':
           description : Forbidden (Not authorized to change group photo)
           content : 

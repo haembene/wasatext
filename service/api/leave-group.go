@@ -102,7 +102,7 @@ func (rt *_router) leaveGroup(
 }
 
 func isValidID(id string) bool {
-	if len(id) < 10 || len(id) > 30 {
+	if len(id) < 10 || len(id) > 64 {
 		return false
 	}
 	// Optimization: Reuse the compiled regex from forward-message.go

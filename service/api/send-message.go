@@ -48,8 +48,8 @@ func (rt *_router) sendMessage(
 		return
 	}
 
-	// 4. Validate content
-	if len(body.Content) < 1 || len(body.Content) > 1000 {
+	// 4. Validate content (Boosted to 10MB to support Base64 Inline Images)
+	if len(body.Content) < 1 || len(body.Content) > 10000000 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid content"})
 		return

@@ -19,7 +19,7 @@ func (rt *_router) uncommentMessage(
 
 	// 1. Extract messageId
 	messageID := ps.ByName("id")
-	if len(messageID) < 10 || len(messageID) > 30 {
+	if len(messageID) < 10 || len(messageID) > 64 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"message": "invalid message id",
@@ -48,7 +48,7 @@ func (rt *_router) uncommentMessage(
 	}
 
 	// 4. Validate emoticon length and pattern
-	if len(emoticon) < 1 || len(emoticon) > 4 {
+	if len(emoticon) < 1 || len(emoticon) > 16 {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"message": "invalid emoticon length",

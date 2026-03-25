@@ -47,14 +47,14 @@ func (rt *_router) forwardMessage(
 	}
 
 	// 3. Validate messageId
-	if len(body.MessageID) < 10 || len(body.MessageID) > 30 || !fwdIDRegex.MatchString(body.MessageID) {
+	if len(body.MessageID) < 10 || len(body.MessageID) > 64 || !fwdIDRegex.MatchString(body.MessageID) {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid messageId"})
 		return
 	}
 
 	// 4. Validate recipientId
-	if len(body.RecipientID) < 10 || len(body.RecipientID) > 30 || !fwdIDRegex.MatchString(body.RecipientID) {
+	if len(body.RecipientID) < 10 || len(body.RecipientID) > 64 || !fwdIDRegex.MatchString(body.RecipientID) {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{"message": "invalid recipientId"})
 		return

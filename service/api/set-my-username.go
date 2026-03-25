@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"net/http"
+	"regexp"
 
 	"github.com/haembene/wasatext/service/api/reqcontext"
 	"github.com/julienschmidt/httprouter"
@@ -50,9 +51,8 @@ func (rt *_router) setMyUserName(
 		return
 	}
 
-	// Validate pattern ^[a-zA-Z0-9]+$
-	// Optimization: Use package-level regex from forward-message.go
-	if !fwdIDRegex.MatchString(body.NewName) {
+	// Validate pattern natively
+	if ok, _ := regexp.MatchString(`^[\p{L}\p{N} \-_.,!?]+$`, body.NewName); !ok {
 		w.WriteHeader(http.StatusBadRequest)
 		_ = json.NewEncoder(w).Encode(map[string]string{
 			"message": "invalid username format",
