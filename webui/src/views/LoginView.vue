@@ -12,25 +12,16 @@ export default {
 			this.loading = true;
 			this.errormsg = null;
 			
-			// DEBUG: Popup to confirm the button works
-			alert("1. Button clicked! Attempting to connect to: " + this.$axios.defaults.baseURL);
-
 			try {
 				let response = await this.$axios.post("/session", {
 					name: this.username
 				});
 				
-				// DEBUG: Popup if success
-				alert("2. Success! Token received: " + response.data.identifier);
-
 				localStorage.setItem("wasa_token", response.data.identifier);
 				localStorage.setItem("wasa_username", this.username);
 				this.$router.push("/");
 				
 			} catch (e) {
-				// DEBUG: Popup if error
-				alert("3. ERROR: " + e.toString());
-				
 				if (e.response) {
 					this.errormsg = "Server Error: " + e.response.status + " " + e.response.statusText;
 				} else if (e.request) {

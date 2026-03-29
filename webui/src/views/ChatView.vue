@@ -336,7 +336,7 @@ export default {
             <h1 class="h2 d-flex align-items-center">
                 <span v-if="isGroup" class="badge bg-secondary me-2">Group</span>
                 <img v-if="partnerPhotoUrl" :src="partnerPhotoUrl" class="rounded-circle me-3 shadow-sm border border-secondary border-opacity-25" style="width: 45px; height: 45px; object-fit: cover;" alt="Global Avatar">
-                <img v-if="!partnerPhotoUrl" src="https://via.placeholder.com/45" class="rounded-circle me-3 shadow-sm border border-secondary border-opacity-25" style="width: 45px; height: 45px; object-fit: cover;" alt="Placeholder">
+                <img v-if="!partnerPhotoUrl" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>" class="rounded-circle me-3 shadow-sm border border-secondary border-opacity-25 bg-light" style="width: 45px; height: 45px; object-fit: cover; padding: 5px;" alt="Placeholder">
                 {{ partnerName }}
             </h1>
             <div class="btn-toolbar mb-2 mb-md-0">
@@ -395,7 +395,7 @@ export default {
                         <label class="form-label small text-muted mb-2 fw-bold text-uppercase" style="letter-spacing: 0.5px;">Active Members ({{ groupMembers.length }})</label>
                         <div class="d-flex flex-wrap gap-2">
                             <span v-for="member in groupMembers" :key="member.id || member.ID" class="badge bg-light text-dark border border-secondary border-opacity-25 px-3 py-2 rounded-pill d-flex align-items-center shadow-sm">
-                                <img :src="member.photoUrl || member.PhotoUrl || 'https://via.placeholder.com/20'" class="rounded-circle me-2" style="width: 22px; height: 22px; object-fit: cover;">
+                                <img :src="member.photoUrl || member.PhotoUrl || `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>`" class="rounded-circle me-2 bg-light p-1" style="width: 22px; height: 22px; object-fit: cover;">
                                 <span class="fw-bold">{{ member.name || member.Name }}</span>
                                 <span v-if="(member.id || member.ID) === myId" class="text-primary small ms-1 fst-italic">(Me)</span>
                             </span>
@@ -417,8 +417,8 @@ export default {
                     
                     <!-- Sender Avatar (Groups Only) -->
                     <img v-if="isGroup && (msg.senderId || msg.SenderID) !== myId" 
-                         :src="(msg.senderPhoto || msg.SenderPhoto) || 'https://via.placeholder.com/40'" 
-                         class="rounded-circle me-2 mb-1 shadow-sm border border-secondary border-opacity-25" 
+                         :src="(msg.senderPhoto || msg.SenderPhoto) || `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>`" 
+                         class="rounded-circle me-2 mb-1 shadow-sm border border-secondary border-opacity-25 bg-light p-1" 
                          style="width: 32px; height: 32px; object-fit: cover;" alt="Avatar">
 
                     <div :class="{'align-self-end text-end': (msg.senderId || msg.SenderID) === myId, 'align-self-start': (msg.senderId || msg.SenderID) !== myId}" style="max-width: 85%;">

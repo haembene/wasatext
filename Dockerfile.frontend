@@ -10,6 +10,9 @@ COPY webui webui
 # Set the working directory inside the container to /app/webui
 WORKDIR /app/webui
 
+# Install dependencies
+RUN yarn install
+
 # Run the build command to create a production build of the web UI
 RUN yarn run build-prod
 

@@ -3,14 +3,13 @@ package api
 import (
 	"encoding/json"
 	"net/http"
-	"regexp"
+
 
 	"github.com/haembene/wasatext/service/api/reqcontext"
 	"github.com/julienschmidt/httprouter"
 )
 
-// Pre-compile regex for performance
-var urlRegex = regexp.MustCompile(`^https?://`)
+
 
 type updateGroupPhotoRequest struct {
 	PhotoUrl string `json:"photoUrl"`

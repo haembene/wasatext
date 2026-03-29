@@ -29,16 +29,16 @@ type Conversation struct {
 
 // Message represents a single message
 type Message struct {
-	ID         string     `json:"id"`
-	SenderID   string     `json:"senderId"`
-	SenderName string     `json:"senderName,omitempty"`
-	SenderPhoto string    `json:"senderPhoto,omitempty"`
-	Content    string     `json:"content"`
-	Timestamp  string     `json:"timestamp"`
-	IsPhoto    bool       `json:"isPhoto"`
-	Status     int        `json:"status"`
-	ReplyTo    string     `json:"replyTo,omitempty"`
-	Reactions  []Reaction `json:"reactions"`
+	ID          string     `json:"id"`
+	SenderID    string     `json:"senderId"`
+	SenderName  string     `json:"senderName,omitempty"`
+	SenderPhoto string     `json:"senderPhoto,omitempty"`
+	Content     string     `json:"content"`
+	Timestamp   string     `json:"timestamp"`
+	IsPhoto     bool       `json:"isPhoto"`
+	Status      int        `json:"status"`
+	ReplyTo     string     `json:"replyTo,omitempty"`
+	Reactions   []Reaction `json:"reactions"`
 }
 
 // ConversationSnippet is used for the list of conversations

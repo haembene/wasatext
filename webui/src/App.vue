@@ -25,6 +25,15 @@ export default {
             localStorage.removeItem("wasa_username");
             this.$router.push('/login');
         }
+    },
+    async mounted() {
+        if (this.$axios) {
+            try {
+                await this.$axios.get("/liveness");
+            } catch (e) {
+                console.error("Liveness check failed", e);
+            }
+        }
     }
 }
 </script>

@@ -3,9 +3,9 @@ package database
 import (
 	"database/sql"
 	"errors"
-	
-	"strings"
+
 	"github.com/google/uuid"
+	"strings"
 )
 
 // ErrForbidden is used when a user is not authorized to perform an action.

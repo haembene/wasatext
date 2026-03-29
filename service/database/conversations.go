@@ -99,10 +99,10 @@ func (db *appdbimpl) GetMyConversations(userID string, usernameFilter *string) (
 
 	// 5. Read all basic info first to free the connection
 	type convRow struct {
-		id       string
-		name     string
-		photo    string
-		isGroup  bool
+		id      string
+		name    string
+		photo   string
+		isGroup bool
 	}
 	var cRows []convRow
 
@@ -394,7 +394,7 @@ func (db *appdbimpl) readMessagesWithReactions(rows *sql.Rows) ([]Message, error
 			var r Reaction
 			var reactorName sql.NullString
 			if err := rrows.Scan(&r.ReactorID, &r.Emoticon, &reactorName); err != nil {
-				_ = rrows.Close() 
+				_ = rrows.Close()
 				return nil, err
 			}
 			if reactorName.Valid {
@@ -405,10 +405,10 @@ func (db *appdbimpl) readMessagesWithReactions(rows *sql.Rows) ([]Message, error
 
 		// Check for inner loop errors
 		if err := rrows.Err(); err != nil {
-			_ = rrows.Close() 
+			_ = rrows.Close()
 			return nil, err
 		}
-		_ = rrows.Close() 
+		_ = rrows.Close()
 	}
 
 	return msgs, nil

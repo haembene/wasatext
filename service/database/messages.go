@@ -120,7 +120,7 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 		senderID, // person who forwards
 		newRecipientID,
 		timestamp,
-		fwdContent, // copy text WITH markers
+		fwdContent,       // copy text WITH markers
 		original.IsPhoto, // copy type
 		0,                // sent
 		newReplyToPtr,    // Pass pointer or nil to SQL
@@ -142,7 +142,7 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 		Content:    fwdContent, // Display active
 		IsPhoto:    original.IsPhoto,
 		Status:     0,
-		ReplyTo:    original.ReplyTo, 
+		ReplyTo:    original.ReplyTo,
 		Reactions:  []Reaction{},
 	}
 
