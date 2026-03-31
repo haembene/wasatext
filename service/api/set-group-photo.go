@@ -4,12 +4,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-
 	"github.com/haembene/wasatext/service/api/reqcontext"
 	"github.com/julienschmidt/httprouter"
 )
-
-
 
 type updateGroupPhotoRequest struct {
 	PhotoUrl string `json:"photoUrl"`

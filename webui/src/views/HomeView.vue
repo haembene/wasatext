@@ -45,7 +45,7 @@ export default {
         async startNewChat(targetUserID) {
             try {
                 // Ensure conversation exists for unfamiliar users
-                let response = await this.$axios.put("/conversations/" + targetUserID, {
+                let response = await this.$axios.post("/conversations/" + targetUserID, {
                     name: "New Chat" 
                 });
                 let conversationId = response.data.ID || response.data.id || response.data.conversationId;

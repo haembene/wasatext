@@ -61,6 +61,7 @@ paths:
             text/plain:
               schema:
                 type: string
+                description: "Liveness response string"
                 example: "OK"
 
   /users:
@@ -232,7 +233,7 @@ paths:
             application/json :
               schema :
                 $ref : '#/components/schemas/ErrorResponse'
-    put:
+    post:
       tags : ["conversations"]
       summary : Create a new conversation
       operationId : setConversation
