@@ -62,5 +62,5 @@ func (rt *_router) setMyPhoto(
 	}
 
 	// 5. Return 204
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }

@@ -22,5 +22,10 @@ WORKDIR /app/
 # Copy the binary from the builder stage to the working directory in the final stage
 COPY --from=builder /app/webapi ./
 
+# Set the /app directory to be writable by any user
+# This prevents sqlite3 permission denied errors ("unable to open database file")
+# if the container is run with a non-root user (e.g., using docker run --user).
+RUN chmod 777 /app/
+
 # Set the command to run the Go application
 CMD ["/app/webapi"]

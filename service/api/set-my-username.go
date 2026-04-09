@@ -90,5 +90,5 @@ func (rt *_router) setMyUserName(
 		return
 	}
 
-	w.WriteHeader(http.StatusNoContent)
+	w.WriteHeader(http.StatusOK)
 }
