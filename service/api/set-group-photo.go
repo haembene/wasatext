@@ -88,5 +88,5 @@ func (rt *_router) setGroupPhoto(
 	}
 
 	// 6. Success
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusNoContent)
 }

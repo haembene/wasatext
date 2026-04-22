@@ -336,7 +336,7 @@ export default {
             <h1 class="h2 d-flex align-items-center">
                 <span v-if="isGroup" class="badge bg-secondary me-2">Group</span>
                 <img v-if="partnerPhotoUrl" :src="partnerPhotoUrl" class="rounded-circle me-3 shadow-sm border border-secondary border-opacity-25" style="width: 45px; height: 45px; object-fit: cover;" alt="Global Avatar">
-                <img v-if="!partnerPhotoUrl" src="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>" class="rounded-circle me-3 shadow-sm border border-secondary border-opacity-25 bg-light" style="width: 45px; height: 45px; object-fit: cover; padding: 5px;" alt="Placeholder">
+                <img v-if="!partnerPhotoUrl" src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E" class="rounded-circle me-3 shadow-sm border border-secondary border-opacity-25 bg-light" style="width: 45px; height: 45px; object-fit: cover; padding: 5px;" alt="Placeholder">
                 {{ partnerName }}
             </h1>
             <div class="btn-toolbar mb-2 mb-md-0">
@@ -395,7 +395,7 @@ export default {
                         <label class="form-label small text-muted mb-2 fw-bold text-uppercase" style="letter-spacing: 0.5px;">Active Members ({{ groupMembers.length }})</label>
                         <div class="d-flex flex-wrap gap-2">
                             <span v-for="member in groupMembers" :key="member.id || member.ID" class="badge bg-light text-dark border border-secondary border-opacity-25 px-3 py-2 rounded-pill d-flex align-items-center shadow-sm">
-                                <img :src="member.photoUrl || member.PhotoUrl || `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>`" class="rounded-circle me-2 bg-light p-1" style="width: 22px; height: 22px; object-fit: cover;">
+                                <img :src="member.photoUrl || member.PhotoUrl || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E`" class="rounded-circle me-2 bg-light p-1" style="width: 22px; height: 22px; object-fit: cover;">
                                 <span class="fw-bold">{{ member.name || member.Name }}</span>
                                 <span v-if="(member.id || member.ID) === myId" class="text-primary small ms-1 fst-italic">(Me)</span>
                             </span>
@@ -417,19 +417,19 @@ export default {
                     
                     <!-- Sender Avatar (Groups Only) -->
                     <img v-if="isGroup && (msg.senderId || msg.SenderID) !== myId" 
-                         :src="(msg.senderPhoto || msg.SenderPhoto) || `data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'><path d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/></svg>`" 
+                         :src="(msg.senderPhoto || msg.SenderPhoto) || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E`" 
                          class="rounded-circle me-2 mb-1 shadow-sm border border-secondary border-opacity-25 bg-light p-1" 
                          style="width: 32px; height: 32px; object-fit: cover;" alt="Avatar">
 
                     <div :class="{'align-self-end text-end': (msg.senderId || msg.SenderID) === myId, 'align-self-start': (msg.senderId || msg.SenderID) !== myId}" style="max-width: 85%;">
                         <div class="d-inline-block p-2 rounded position-relative text-start w-100" :class="(msg.senderId || msg.SenderID) === myId ? 'bg-primary text-white' : 'bg-light border text-dark'">
                         <!-- Forwarded Marker -->
-                        <div v-if="((msg.content || msg.Content) || '').startsWith('|FORWARDED|')" class="fst-italic small text-white opacity-75 mb-1 pb-1 border-bottom" :class="(msg.senderId || msg.SenderID) === myId ? 'border-light' : 'text-dark border-secondary'">
-                            <span class="fs-6 fw-bold">➦</span> Forwarded message
+                        <div v-if="((msg.content || msg.Content) || '').startsWith('|FORWARDED|')" class="fst-italic small opacity-75 mb-1 pb-1 border-bottom" :class="(msg.senderId || msg.SenderID) === myId ? 'text-white border-light' : 'text-muted border-secondary'">
+                            <span class="fs-6 fw-bold">➦</span> Forwarded.
                         </div>
                         
                         <!-- Quoted message snippet -->
-                        <div v-if="msg.replyTo || msg.ReplyTo" class="bg-dark bg-opacity-25 rounded p-1 mb-2 text-white small border-start border-3 border-light opacity-75">
+                        <div v-if="msg.replyTo || msg.ReplyTo" class="rounded p-1 mb-2 small border-start border-3 opacity-75" :class="(msg.senderId || msg.SenderID) === myId ? 'bg-dark bg-opacity-25 text-white border-light' : 'bg-secondary bg-opacity-10 text-muted border-secondary'">
                             <strong>Replying to:</strong>
                             <span class="fst-italic ms-1">{{ getQuoteSnippet(msg.replyTo || msg.ReplyTo) }}</span>
                         </div>

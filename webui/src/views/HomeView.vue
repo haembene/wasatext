@@ -154,7 +154,7 @@ export default {
                    :key="c.id || c.ID"
                    @click.prevent="openExistingChat(c.id || c.ID)"
                 >
-                    <img :src="c.photoUrl || c.PhotoUrl || 'https://via.placeholder.com/40'" alt="pic" width="40" height="40" class="rounded-circle flex-shrink-0">
+                    <img :src="c.photoUrl || c.PhotoUrl || `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E`" alt="pic" width="40" height="40" class="rounded-circle flex-shrink-0 bg-light p-1 border border-secondary border-opacity-25">
                     <div class="d-flex gap-2 w-100 justify-content-between">
                         <div>
                             <h6 class="mb-0">

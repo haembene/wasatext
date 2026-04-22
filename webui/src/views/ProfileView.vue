@@ -122,7 +122,7 @@ export default {
             <div class="card">
                 <div class="card-header d-flex align-items-center">
                     <img v-if="currentPhotoUrl" :src="currentPhotoUrl" class="rounded-circle me-3 shadow-sm border border-secondary border-opacity-25" style="width: 45px; height: 45px; object-fit: cover;" alt="Global Avatar">
-                    <img v-else src="https://via.placeholder.com/45" class="rounded-circle me-3 shadow-sm border border-secondary border-opacity-25" style="width: 45px; height: 45px; object-fit: cover;" alt="Placeholder">
+                    <img v-else src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23aaa'%3E%3Cpath d='M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z'/%3E%3C/svg%3E" class="rounded-circle me-3 shadow-sm border border-secondary border-opacity-25 bg-light p-1" style="width: 45px; height: 45px; object-fit: cover;" alt="Placeholder">
                     <span class="fs-5 fw-bold">Change Profile Photo</span>
                 </div>
                 <div class="card-body">

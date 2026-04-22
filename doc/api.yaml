@@ -123,8 +123,8 @@ paths:
                   maxLength : 32 
                   pattern : "^[a-zA-Z0-9]+$" 
       responses :
-        '200':
-          description : User name successfully updated (OK)
+        '204':
+          description : User name successfully updated (No Content)
         '409':
           description : Conflict, the new name is already in use
           content : 
@@ -155,8 +155,8 @@ paths:
                   description : The URL of the new profile photo
                   maxLength : 200 
       responses :
-        '200':
-          description : Profile photo successfully updated (OK)
+        '204':
+          description : Profile photo successfully updated (No Content)
         '403':
           description : Forbidden (Not authorized)
           content : 
@@ -634,8 +634,8 @@ paths:
                   maxLength : 32
                   pattern : "^[a-zA-Z0-9 ]+$" 
       responses :
-        '200':
-          description : Group name successfully updated (OK)
+        '204':
+          description : Group name successfully updated (No Content)
         '403':
           description : Forbidden (Not authorized to change group name)
           content : 
@@ -682,8 +682,8 @@ paths:
                   description : The URL of the new group photo.
                   maxLength : 200 
       responses :
-        '200':
-          description : Group photo successfully updated (OK)
+        '204':
+          description : Group photo successfully updated (No Content)
         '403':
           description : Forbidden (Not authorized to change group photo)
           content : 

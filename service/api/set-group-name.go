@@ -101,5 +101,5 @@ func (rt *_router) setGroupName(
 	}
 
 	// 6. Success
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusNoContent)
 }
