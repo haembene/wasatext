@@ -99,6 +99,41 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 		return Message{}, errors.New("recipient not found")
 	}
 
+	// Validate preexisting chat constraint
+	var isGroup bool
+	var tmp string
+	err = db.c.QueryRow(`SELECT id FROM groups WHERE id = ?`, newRecipientID).Scan(&tmp)
+	if err == nil {
+		isGroup = true
+	}
+
+	if isGroup {
+		var memberCount int
+		err = db.c.QueryRow(`
+			SELECT COUNT(*) FROM group_members 
+			WHERE groupId = ? AND userId = ?
+		`, newRecipientID, senderID).Scan(&memberCount)
+		if err != nil {
+			return Message{}, err
+		}
+		if memberCount == 0 {
+			return Message{}, errors.New("no preexisting chat with this recipient")
+		}
+	} else {
+		var msgCount int
+		err = db.c.QueryRow(`
+			SELECT COUNT(*) FROM messages 
+			WHERE (senderId = ? AND recipientId = ?) 
+			   OR (senderId = ? AND recipientId = ?)
+		`, senderID, newRecipientID, newRecipientID, senderID).Scan(&msgCount)
+		if err != nil {
+			return Message{}, err
+		}
+		if msgCount == 0 {
+			return Message{}, errors.New("no preexisting chat with this recipient")
+		}
+	}
+
 	// create new message
 	newID := strings.ReplaceAll(uuid.New().String(), "-", "")
 	timestamp := time.Now().UTC().Format(time.RFC3339)

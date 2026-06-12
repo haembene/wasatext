@@ -13,8 +13,9 @@ var fwdIDRegex = regexp.MustCompile(`^[a-zA-Z0-9]+$`)
 
 // Define constants to satisfy 'goconst' linter
 const (
-	ERR_MSG_NOT_FOUND       = "message not found"
-	ERR_RECIPIENT_NOT_FOUND = "recipient not found"
+	ERR_MSG_NOT_FOUND         = "message not found"
+	ERR_RECIPIENT_NOT_FOUND   = "recipient not found"
+	ERR_NO_PREEXISTING_CHAT   = "no preexisting chat with this recipient"
 )
 
 type forwardMessageRequest struct {
@@ -67,6 +68,11 @@ func (rt *_router) forwardMessage(
 	if err != nil {
 		if err.Error() == ERR_MSG_NOT_FOUND || err.Error() == ERR_RECIPIENT_NOT_FOUND {
 			w.WriteHeader(http.StatusNotFound)
+			_ = json.NewEncoder(w).Encode(map[string]string{"message": err.Error()})
+			return
+		}
+		if err.Error() == ERR_NO_PREEXISTING_CHAT {
+			w.WriteHeader(http.StatusForbidden)
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": err.Error()})
 			return
 		}
