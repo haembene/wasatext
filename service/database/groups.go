@@ -13,22 +13,27 @@ import (
 var ErrForbidden = errors.New("forbidden")
 
 // CHECK MEMBERSHIP
+// GetGroupMember checks if a user is a member of the specified group.
+// Used for access validation.
 func (db *appdbimpl) GetGroupMember(groupID, userID string) (bool, error) {
 	var tmp string
+	// Query: Select userId from group_members matching group ID and user ID
 	err := db.c.QueryRow(`
         SELECT userId FROM group_members
         WHERE groupId = ? AND userId = ?
     `, groupID, userID).Scan(&tmp)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
+		return false, nil // Not a member
 	}
 	if err != nil {
-		return false, err
+		return false, err // DB error
 	}
-	return true, nil
+	return true, nil // User is a member
 }
 
+// AddUserToGroup adds a new user to an existing group.
+// Validates: 1) Group exists, 2) Target user exists, 3) Requester is currently a member of the group.
 func (db *appdbimpl) AddUserToGroup(groupID, userIDToAdd, requesterID string) error {
 
 	// check if group exists
@@ -65,7 +70,7 @@ func (db *appdbimpl) AddUserToGroup(groupID, userIDToAdd, requesterID string) er
 		return ErrForbidden
 	}
 
-	// add
+	// add: insert membership record into group_members
 	_, err = db.c.Exec(`
         INSERT INTO group_members (groupId, userId)
         VALUES (?, ?)
@@ -78,9 +83,11 @@ func (db *appdbimpl) AddUserToGroup(groupID, userIDToAdd, requesterID string) er
 	return nil
 }
 
+// LeaveGroup removes a member from a group.
+// Validates: 1) Requester matches target ID (only can leave yourself), 2) Group exists, 3) User is currently in the group.
 func (db *appdbimpl) LeaveGroup(groupID, userID, requesterID string) error {
 
-	// check if user we want to delete is THIS user
+	// check if user we want to delete is THIS user (cannot eject others, only leave group ourselves)
 	if userID != requesterID {
 		return ErrForbidden
 	}
@@ -111,7 +118,7 @@ func (db *appdbimpl) LeaveGroup(groupID, userID, requesterID string) error {
 		return err
 	}
 
-	// delete member
+	// delete member: remove row from group_members
 	_, err = db.c.Exec(`
         DELETE FROM group_members
         WHERE groupId = ? AND userId = ?
@@ -124,6 +131,8 @@ func (db *appdbimpl) LeaveGroup(groupID, userID, requesterID string) error {
 	return nil
 }
 
+// SetGroupName renames a group.
+// Validates: 1) Group exists, 2) Requester is a group member, 3) Group name does not conflict with another group.
 func (db *appdbimpl) SetGroupName(groupID, requesterID, newName string) error {
 
 	// check if group exists
@@ -153,7 +162,7 @@ func (db *appdbimpl) SetGroupName(groupID, requesterID, newName string) error {
 		return err
 	}
 
-	// check if there exists another group with the same name
+	// check if there exists another group with the same name to prevent naming conflicts
 	err = db.c.QueryRow(`
         SELECT id FROM groups 
         WHERE name = ? AND id != ?
@@ -167,7 +176,7 @@ func (db *appdbimpl) SetGroupName(groupID, requesterID, newName string) error {
 		return err
 	}
 
-	// group name update
+	// group name update: update groups metadata table
 	_, err = db.c.Exec(`
         UPDATE groups
         SET name = ?
@@ -181,6 +190,8 @@ func (db *appdbimpl) SetGroupName(groupID, requesterID, newName string) error {
 	return nil
 }
 
+// SetGroupPhoto uploads a base64 profile photo for the group.
+// Validates: 1) Group exists, 2) Requester is a member of the group.
 func (db *appdbimpl) SetGroupPhoto(groupID, requesterID, newPhotoURL string) error {
 
 	var tmp string
@@ -209,7 +220,7 @@ func (db *appdbimpl) SetGroupPhoto(groupID, requesterID, newPhotoURL string) err
 		return err
 	}
 
-	// photo update
+	// photo update: store base64 string in database groups table
 	_, err = db.c.Exec(`
         UPDATE groups
         SET photoUrl = ?
@@ -223,7 +234,7 @@ func (db *appdbimpl) SetGroupPhoto(groupID, requesterID, newPhotoURL string) err
 	return nil
 }
 
-// CreateGroup creates a new group conversation and adds the creator as a participant
+// CreateGroup creates a new group conversation and adds the creator as a participant.
 func (db *appdbimpl) CreateGroup(name string, ownerID string) (Conversation, error) {
 	var group Conversation
 	groupID := strings.ReplaceAll(uuid.New().String(), "-", "")
@@ -249,6 +260,8 @@ func (db *appdbimpl) CreateGroup(name string, ownerID string) (Conversation, err
 	return group, nil
 }
 
+// GetGroupMembers retrieves a list of all users in a group.
+// Validates: Requester must be a member of the group to see other members.
 func (db *appdbimpl) GetGroupMembers(groupID string, userID string) ([]User, error) {
 	// check if user is a member
 	var tmp string
@@ -263,6 +276,7 @@ func (db *appdbimpl) GetGroupMembers(groupID string, userID string) ([]User, err
 		return nil, err
 	}
 
+	// Query: SQL Join to retrieve member names and photos from users table matching group ID
 	rows, err := db.c.Query(`
 		SELECT u.id, u.name, u.photoUrl 
 		FROM group_members gm
