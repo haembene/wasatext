@@ -5,6 +5,9 @@ import (
 	"errors"
 )
 
+// GetMyConversations fetches the list of active direct chats and groups that the logged-in user participates in.
+// Parameters: userID (UUID), usernameFilter (optional string to search/filter chats).
+// DB Action: Performs a SQL UNION between active direct message contacts and the user's active groups, sorting by the latest message timestamp.
 func (db *appdbimpl) GetMyConversations(userID string, usernameFilter *string) ([]ConversationSnippet, error) {
 	var rows *sql.Rows
 	var err error
@@ -137,7 +140,7 @@ func (db *appdbimpl) GetMyConversations(userID string, usernameFilter *string) (
 
 	out := []ConversationSnippet{}
 
-	// 6. Do nested queries without holding the outer Rows lock
+	// 6. Do nested queries without holding the outer Rows lock (deadlock prevention)
 	for _, cr := range cRows {
 		// get latest message
 		var latestMsg Message
@@ -158,7 +161,7 @@ func (db *appdbimpl) GetMyConversations(userID string, usernameFilter *string) (
 			pointerMsg = &latestMsg
 		}
 
-		// count unread
+		// count unread messages: status < 2
 		unread := 0
 		if cr.isGroup {
 			// messages in a group, sent not by me and not read
@@ -189,7 +192,9 @@ func (db *appdbimpl) GetMyConversations(userID string, usernameFilter *string) (
 	return out, nil
 }
 
-// GetConversation returns the history of messages between me and conversationID.
+// GetConversation returns the message history array for a direct chat or group chat.
+// Parameters: meID (UUID of client), conversationID (UUID of chat partner or group).
+// DB Action: Performs SQL Query selecting messages and left joining sender profile photos/names.
 func (db *appdbimpl) GetConversation(meID, conversationID string) ([]Message, error) {
 
 	// Check if the user with specified id exists
@@ -202,13 +207,22 @@ func (db *appdbimpl) GetConversation(meID, conversationID string) ([]Message, er
 	}
 
 	if !isUser {
-		// group
+		// group chat fetch
 		err = db.c.QueryRow(`SELECT id FROM groups WHERE id = ?`, conversationID).Scan(&tmp)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				return nil, errors.New("conversation not found")
 			}
 			return nil, err
+		}
+		// Verify requester is a member of this group
+		var isMember int
+		err = db.c.QueryRow(`SELECT COUNT(*) FROM group_members WHERE groupId = ? AND userId = ?`, conversationID, meID).Scan(&isMember)
+		if err != nil {
+			return nil, err
+		}
+		if isMember == 0 {
+			return nil, errors.New("forbidden")
 		}
 		rows, err := db.c.Query(`
             SELECT m.id, m.senderId, m.timestamp, m.content, m.isPhoto, m.status, m.replyTo, u.name, u.photoUrl
@@ -227,7 +241,7 @@ func (db *appdbimpl) GetConversation(meID, conversationID string) ([]Message, er
 		return db.readMessagesWithReactions(rows)
 	}
 
-	// direct chat
+	// direct chat fetch: returns messages exchanged between the two users
 	rows, err := db.c.Query(`
         SELECT m.id, m.senderId, m.timestamp, m.content, m.isPhoto, m.status, m.replyTo, u.name, u.photoUrl
         FROM messages m
@@ -246,6 +260,7 @@ func (db *appdbimpl) GetConversation(meID, conversationID string) ([]Message, er
 	return db.readMessagesWithReactions(rows)
 }
 
+// getLatestMessageForDirect returns the single latest message in a direct chat.
 func (db *appdbimpl) getLatestMessageForDirect(meID, otherID string) (Message, error) {
 	row := db.c.QueryRow(`
         SELECT m.id, m.senderId, m.timestamp, m.content, m.isPhoto, m.status, m.replyTo, u.name, u.photoUrl
@@ -296,6 +311,7 @@ func (db *appdbimpl) getLatestMessageForDirect(meID, otherID string) (Message, e
 	return m, nil
 }
 
+// getLatestMessageForGroup returns the single latest message in a group chat.
 func (db *appdbimpl) getLatestMessageForGroup(groupID string) (Message, error) {
 	row := db.c.QueryRow(`
         SELECT m.id, m.senderId, m.timestamp, m.content, m.isPhoto, m.status, m.replyTo, u.name, u.photoUrl
@@ -345,6 +361,8 @@ func (db *appdbimpl) getLatestMessageForGroup(groupID string) (Message, error) {
 	return m, nil
 }
 
+// readMessagesWithReactions resolves reaction list objects for a batch of messages.
+// Designed to close outer cursor first to avoid database connection locking (WAL concurrency compatibility).
 func (db *appdbimpl) readMessagesWithReactions(rows *sql.Rows) ([]Message, error) {
 	// 1. Read all messages into memory first to avoid nested database cursors lock (Deadlock prevention)
 	msgs := []Message{}
@@ -414,7 +432,7 @@ func (db *appdbimpl) readMessagesWithReactions(rows *sql.Rows) ([]Message, error
 	return msgs, nil
 }
 
-// CreateConversation returns the target user snippet for a direct chat
+// CreateConversation returns the target user snippet for a direct chat initialization.
 func (db *appdbimpl) CreateConversation(userID string, otherID string) (ConversationSnippet, error) {
 	var name, photoUrl string
 	err := db.c.QueryRow(`SELECT name, photoUrl FROM users WHERE id = ?`, otherID).Scan(&name, &photoUrl)
@@ -434,13 +452,15 @@ func (db *appdbimpl) CreateConversation(userID string, otherID string) (Conversa
 	}, nil
 }
 
-// SetConversationRead marks conversations as read (status = 2)
+// SetConversationRead updates message read receipts (status = 2).
+// Direct Chat: Sets status = 2 for incoming messages where recipient is the active user.
+// Group Chat: Logs read events inside message_reads table, upgrading message status to 2 when all group members have read it.
 func (db *appdbimpl) SetConversationRead(userID string, conversationID string) error {
 	var tmp string
 	// Check if the conversation is a group
 	err := db.c.QueryRow(`SELECT id FROM groups WHERE id = ?`, conversationID).Scan(&tmp)
 	if err == nil {
-		// 1. Mark as read by this user
+		// 1. Mark as read by this user: insert read entry
 		_, err = db.c.Exec(`
 			INSERT OR IGNORE INTO message_reads (messageId, userId)
 			SELECT id, ? FROM messages 
@@ -461,7 +481,7 @@ func (db *appdbimpl) SetConversationRead(userID string, conversationID string) e
 		return err
 	}
 
-	// Direct message
+	// Direct message read receipt update query
 	_, err = db.c.Exec(`
 		UPDATE messages
 		SET status = 2

@@ -93,6 +93,8 @@ type appdbimpl struct {
 }
 
 // New returns a new instance of AppDatabase based on the SQLite connection `db`.
+// New initializes the database connection and runs schemas to create all required tables.
+// Configurations: Runs on startup. Enforces foreign key constraints.
 func New(db *sql.DB) (AppDatabase, error) {
 	if db == nil {
 		return nil, errors.New("database is required when building an AppDatabase")
@@ -107,7 +109,7 @@ func New(db *sql.DB) (AppDatabase, error) {
 	`).Scan(&tableName)
 
 	if errors.Is(err, sql.ErrNoRows) {
-		// The database is empty → create all tables
+		// The database is empty → create all core tables
 		schema := `
 		CREATE TABLE IF NOT EXISTS users (
 			id TEXT PRIMARY KEY,
@@ -155,7 +157,8 @@ func New(db *sql.DB) (AppDatabase, error) {
 		return nil, fmt.Errorf("error checking users table: %w", err)
 	}
 
-	// Force-create group tables even on existing databases to resolve legacy issues
+	// Force-create group tables even on existing databases to resolve legacy issues.
+	// Sets up group metadata, group memberships, and group read tracking tables.
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS groups (
 			id TEXT PRIMARY KEY,
@@ -180,6 +183,7 @@ func New(db *sql.DB) (AppDatabase, error) {
 	return &appdbimpl{c: db}, nil
 }
 
+// Ping verifies if the database file is open and accessible.
 func (db *appdbimpl) Ping() error {
 	return db.c.Ping()
 }

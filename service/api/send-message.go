@@ -73,6 +73,11 @@ func (rt *_router) sendMessage(
 			_ = json.NewEncoder(w).Encode(map[string]string{"message": "recipient not found"})
 			return
 		}
+		if err.Error() == "forbidden" {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{"message": "not a member of this group"})
+			return
+		}
 
 		ctx.Logger.Error("SendMessage failed: ", err)
 		w.WriteHeader(http.StatusInternalServerError)

@@ -9,10 +9,34 @@ import (
 	"github.com/google/uuid"
 )
 
+// SendMessage creates a message record in the messages table.
+// Inputs: senderID (UUID), recipientID (UUID of user or group), content (string), replyTo (optional pointer to original message UUID).
+// DB Action: Runs INSERT INTO messages. It defaults status to 0 (Sent).
 func (db *appdbimpl) SendMessage(senderID, recipientID, content string, replyTo *string) (Message, error) {
 
 	if !db.recipientExists(recipientID) {
 		return Message{}, errors.New("recipient not found")
+	}
+
+	// Verify group membership of sender if recipient is a group
+	var isGroup bool
+	var tmp string
+	err := db.c.QueryRow(`SELECT id FROM groups WHERE id = ?`, recipientID).Scan(&tmp)
+	if err == nil {
+		isGroup = true
+	}
+	if isGroup {
+		var memberCount int
+		err = db.c.QueryRow(`
+			SELECT COUNT(*) FROM group_members 
+			WHERE groupId = ? AND userId = ?
+		`, recipientID, senderID).Scan(&memberCount)
+		if err != nil {
+			return Message{}, err
+		}
+		if memberCount == 0 {
+			return Message{}, errors.New("forbidden")
+		}
 	}
 
 	id := strings.ReplaceAll(uuid.New().String(), "-", "")
@@ -20,7 +44,7 @@ func (db *appdbimpl) SendMessage(senderID, recipientID, content string, replyTo 
 
 	isPhoto := isPhotoContent(content)
 
-	// save message
+	// save message: Insert query with status 0
 	// Note: We pass the 'replyTo' pointer directly to Exec.
 	// If it is nil, SQL inserts NULL. If it has a value, SQL inserts the string.
 	_, err := db.c.Exec(`
@@ -59,6 +83,9 @@ func (db *appdbimpl) SendMessage(senderID, recipientID, content string, replyTo 
 	return msg, nil
 }
 
+// ForwardMessage copies an existing message and forwards it to a recipient.
+// Validates: 1) Original message exists, 2) Target exists, 3) Preexisting chat history exists between sender and target.
+// DB Action: Retrieves original content, verifies constraints, prepends |FORWARDED| to the text, and inserts a copy.
 func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) (Message, error) {
 
 	// load original message
@@ -184,6 +211,9 @@ func (db *appdbimpl) ForwardMessage(messageID, newRecipientID, senderID string) 
 	return forwarded, nil
 }
 
+// DeleteMessage deletes a message from the database.
+// Validates: 1) Message exists, 2) Requester is the sender of the message.
+// DB Action: Removes associated reactions from the reactions table, then deletes the message row.
 func (db *appdbimpl) DeleteMessage(messageID, userID string) error {
 
 	// Check if the message exists and belongs to userID
@@ -206,7 +236,7 @@ func (db *appdbimpl) DeleteMessage(messageID, userID string) error {
 		return errors.New("forbidden") // FIXED: Removed undefined ErrForbidden
 	}
 
-	// delete reactions
+	// delete reactions: Clear children rows first
 	_, err = db.c.Exec(`
 		DELETE FROM reactions 
 		WHERE messageId = ?
@@ -215,7 +245,7 @@ func (db *appdbimpl) DeleteMessage(messageID, userID string) error {
 		return err
 	}
 
-	// delete message
+	// delete message: Clear actual row
 	_, err = db.c.Exec(`
 		DELETE FROM messages 
 		WHERE id = ?
@@ -227,6 +257,9 @@ func (db *appdbimpl) DeleteMessage(messageID, userID string) error {
 	return nil
 }
 
+// AddReaction attaches an emoji to a message.
+// Validates: 1) Message exists, 2) User can have at most ONE reaction per message.
+// DB Action: Deletes any pre-existing reaction by this user on the message, then inserts the new reaction emoji.
 func (db *appdbimpl) AddReaction(messageID, userID, emoticon string) error {
 
 	// check if message exists
@@ -250,7 +283,7 @@ func (db *appdbimpl) AddReaction(messageID, userID, emoticon string) error {
 		return err
 	}
 
-	// make reaction
+	// make reaction: Insert query
 	_, err = db.c.Exec(`
 		INSERT INTO reactions (messageId, reactorId, emoticon)
 		VALUES (?, ?, ?)
@@ -263,6 +296,9 @@ func (db *appdbimpl) AddReaction(messageID, userID, emoticon string) error {
 	return nil
 }
 
+// RemoveReaction detaches a user's emoji from a message.
+// Validates: 1) Message exists, 2) Target reaction exists.
+// DB Action: Runs DELETE query on the reactions table.
 func (db *appdbimpl) RemoveReaction(messageID, userID, emoticon string) error {
 
 	var exists string
@@ -277,7 +313,7 @@ func (db *appdbimpl) RemoveReaction(messageID, userID, emoticon string) error {
 		return err
 	}
 
-	// delete reaction
+	// delete reaction: delete row matching composite key values
 	res, err := db.c.Exec(`
 		DELETE FROM reactions
 		WHERE messageId = ? AND reactorId = ? AND emoticon = ?
@@ -296,6 +332,7 @@ func (db *appdbimpl) RemoveReaction(messageID, userID, emoticon string) error {
 	return nil
 }
 
+// recipientExists validates if a recipient ID represents a valid user or group in the database.
 func (db *appdbimpl) recipientExists(id string) bool {
 	var tmp string
 
@@ -313,6 +350,7 @@ func (db *appdbimpl) recipientExists(id string) bool {
 	return err == nil
 }
 
+// isPhotoContent inspects content to determine if it should be marked as a media photo.
 func isPhotoContent(content string) bool {
 	lower := strings.ToLower(content)
 

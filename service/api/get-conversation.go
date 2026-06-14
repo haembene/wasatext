@@ -61,6 +61,13 @@ func (rt *_router) getConversation(
 			})
 			return
 		}
+		if err.Error() == "forbidden" {
+			w.WriteHeader(http.StatusForbidden)
+			_ = json.NewEncoder(w).Encode(map[string]string{
+				"message": "not a member of this group",
+			})
+			return
+		}
 
 		// some DB/internal error
 		ctx.Logger.Error("GetConversation failed: ", err)
