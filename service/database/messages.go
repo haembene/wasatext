@@ -47,7 +47,7 @@ func (db *appdbimpl) SendMessage(senderID, recipientID, content string, replyTo 
 	// save message: Insert query with status 0
 	// Note: We pass the 'replyTo' pointer directly to Exec.
 	// If it is nil, SQL inserts NULL. If it has a value, SQL inserts the string.
-	_, err := db.c.Exec(`
+	_, err = db.c.Exec(`
 		INSERT INTO messages (id, senderId, recipientId, timestamp, content, isPhoto, status, replyTo)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?);
 	`,
